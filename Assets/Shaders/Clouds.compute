@@ -1,0 +1,222 @@
+#pragma kernel CSMain
+
+#include "Common.hlsl"
+#include "Noise.hlsl"
+#include "Alligator.hlsl"
+
+float2 ViewportDimensions;
+float2 ViewportDimensionsInv;
+float3 CameraPosition;
+float4x4 ProjInv;
+float4x4 ViewInv;
+int SampleCount;
+float Time;
+
+float3 BackgroundColor;
+bool UseBackgroundColor;
+
+float Absorption;
+float Scattering;
+float Density; // Essentialy a density scale
+float Eccentricity;
+bool UseJitter;
+
+float3 SphereCenter;
+float SphereRadius;
+
+float3 SunDirection;
+float3 SunColor;
+
+Texture2D SceneTexture;
+RWTexture2D<float4> Result;
+Texture3D CloudsNoise;
+
+SamplerState sLinearRepeat;
+SamplerState sLinearClamp;
+SamplerState sPointRepeat;
+SamplerState sPointClamp;
+
+float4 ActiveChannel;
+float Slice;
+float Mip;
+bool DebugTextures;
+
+struct CloudRenderingGlobalInfo
+{
+    float3 mCameraPosition;
+    float3 mViewDirection;
+    float3 mSunDirection; // Normalized vector going to the sun
+    int mSampleCount;
+    float mStaticHash;
+};
+
+struct CloudRenderingRaymarchInfo
+{
+    float mDistance; // Current distance from camera along the main ray
+    float mStepSize;
+};
+
+struct CloudRenderingPixelData
+{
+    float3 mScattering;
+    float mTransmittance;
+};
+
+float SampleDensity(float3 inSamplePosition)
+{
+    float noise = AlligatorDecima(inSamplePosition);
+    noise = CloudsNoise.SampleLevel(sLinearRepeat, inSamplePosition, 0.0).b;
+    return max(0.0, noise) * 0.5;
+}
+
+float SampleDensityToSun(Ray inLightRay, float inDistanceToBoundary)
+{
+    const int cLightSampleCount = 10;
+    float lightStepSize = ceil(inDistanceToBoundary / cLightSampleCount);
+    
+    float lightRayDensity = 0.0;
+    float distance = lightStepSize;
+    
+    // March along light ray and accumulate density
+    for (int i = 0; i < cLightSampleCount; i++)
+    {
+        // Add the current step offset to the sample positon
+        float3 samplePosition = inLightRay.mOrigin + inLightRay.mDirection * distance;
+        
+        lightRayDensity += SampleDensity(samplePosition);
+        
+        distance += lightStepSize;
+    }
+    
+    return lightRayDensity * lightStepSize;
+}
+
+void RaymarchSphere(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, inout CloudRenderingPixelData ioPixelData)
+{
+    // Init raymarch info struct and set the start distance to the beginning of the ray segment
+    CloudRenderingRaymarchInfo raymarchInfo;
+    raymarchInfo.mDistance = inRaySegment[0] + inGlobalInfo.mStaticHash * 0.001;
+    
+    // Right now the step size is constant
+    raymarchInfo.mStepSize = (inRaySegment[1] - inRaySegment[0]) / inGlobalInfo.mSampleCount;
+    
+    float cosAngle = dot(inGlobalInfo.mViewDirection, inGlobalInfo.mSunDirection);
+    float phase = HenyeyGreenstein(cosAngle, Eccentricity);
+    
+    for (int i = 0; i < inGlobalInfo.mSampleCount; i++)
+    {
+        // Calculate the sample position by adding the distance times the view vector to the camera position
+        float3 samplePos = inGlobalInfo.mCameraPosition + inGlobalInfo.mViewDirection * raymarchInfo.mDistance;
+        
+        // Apply the jitter offset
+        // float jitterDistance = inGlobalInfo.mStaticHash * raymarchInfo.mStepSize;
+        // samplePos += inGlobalInfo.mViewDirection * jitterDistance;
+        
+        float sampleDensity = SampleDensity(samplePos);
+        
+        // Current sample transparency
+        float sampleTransmittance = exp(-raymarchInfo.mStepSize * sampleDensity * (Absorption + Scattering));
+        
+        // Attenuate volume object transparency by current sample transmittance value
+        ioPixelData.mTransmittance *= sampleTransmittance;
+        
+        // In-Scattering
+        // Find the distance traveled by light through the volume to our sample point. Then apply Beer's law.
+        Ray lightRay;
+        lightRay.mOrigin = samplePos;
+        lightRay.mDirection = inGlobalInfo.mSunDirection;
+        
+        RayCastResult hit;
+        if (sampleDensity > 0.0 && RaySphereIntersection(SphereCenter, SphereRadius, lightRay, hit) && hit.mInside)
+        {
+            float lightRayDensity = SampleDensityToSun(lightRay, hit.mT1);
+            
+            // How much light was attenuated on the way to the sample position
+            float lightAttenuation = exp(-lightRayDensity * (Absorption + Scattering));
+            
+            // Attenuate in-scattering contribution by the transmission of all samples accumulated so far
+            ioPixelData.mScattering += ioPixelData.mTransmittance * SunColor * lightAttenuation *
+                                        phase * Scattering * sampleDensity * raymarchInfo.mStepSize;
+        }
+        
+        // Take a step
+        raymarchInfo.mDistance += raymarchInfo.mStepSize;
+        
+        if (ioPixelData.mTransmittance < 0.001)
+        {
+            break;
+        }
+    }
+}
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    if (any((float2) id.xy >= ViewportDimensions))
+        return;
+    
+    if (DebugTextures)
+    {
+        float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(276.0f, 276.0f));
+        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        {
+            float3 pos = float3(debugUV.x, Slice, debugUV.y);
+        
+            // Result[id.xy] = MaskChannels(float4(
+            //     PerlinWorley(pos, Frequency, float3(10.0, 2.8, 4.0), 1.0, Roughness, Octaves), 
+            //     WorleyDecima(pos)), ActiveChannel);
+            Result[id.xy] = MaskChannels(CloudsNoise.SampleLevel(sLinearRepeat, pos, Mip), ActiveChannel);
+            return;
+        }
+        
+        debugUV = InverseLerp((float2) id.xy, float2(290.0f, 20.0f), float2(560.0f, 276.0f));
+        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        {
+            float3 pos = float3(debugUV.x, Slice, debugUV.y);
+            Result[id.xy] = MaskChannels(CloudsNoise.SampleLevel(sPointRepeat, pos, Mip), ActiveChannel);
+            return;
+        }
+    }
+    
+    float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
+    
+    float3 backgroundColor;
+    if (UseBackgroundColor)
+        backgroundColor = BackgroundColor;
+    else
+        backgroundColor = SceneTexture.SampleLevel(sPointClamp, uv, 0).rgb;
+    
+    Ray ray = GetCameraRay(uv, CameraPosition, ProjInv, ViewInv);
+    
+    RayCastResult hit;
+    if (!RaySphereIntersection(SphereCenter, SphereRadius, ray, hit))
+    {
+        Result[id.xy] = float4(backgroundColor, 1.0);
+        return;
+    }
+    
+    SunDirection = normalize(-SunDirection);
+    SunColor *= 20.0;
+    
+    CloudRenderingGlobalInfo globalInfo;
+    globalInfo.mCameraPosition = ray.mOrigin;
+    globalInfo.mViewDirection = ray.mDirection;
+    globalInfo.mSunDirection = SunDirection;
+    globalInfo.mSampleCount = SampleCount;
+    globalInfo.mStaticHash = 0.0;
+    
+    if (UseJitter)
+        globalInfo.mStaticHash = InterleavedGradientNoise(uv);
+    
+    float2 raySegment = float2(hit.mT0, hit.mT1);
+    
+    CloudRenderingPixelData pixelData;
+    pixelData.mTransmittance = 1.0;
+    pixelData.mScattering = 0.0;
+    
+    RaymarchSphere(globalInfo, raySegment, pixelData);
+    
+    float3 finalColor = backgroundColor * pixelData.mTransmittance + pixelData.mScattering;
+    
+    Result[id.xy] = float4(finalColor, 1.0);
+}
