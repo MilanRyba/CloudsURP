@@ -1,16 +1,27 @@
-#pragma kernel CSMain
+#pragma kernel CloudNoiseCS
+#pragma kernel CloudMapCS
 
 #include "Common.hlsl"
 #include "Noise.hlsl"
 
 float ResolutionInv;
 
-RWTexture3D<float4> Output;
+RWTexture3D<float4> OutputNoise;
+RWTexture2D<float4> OutputMap;
 
 [numthreads(8, 8, 8)]
-void CSMain(uint3 id : SV_DispatchThreadID)
+void CloudNoiseCS(uint3 id : SV_DispatchThreadID)
 {
     float3 uvw = TexelToUV(id, ResolutionInv);
     
-    Output[id] = float4(id.x & id.y & id.z, PerlinWorley(uvw, 5, 0.0, 1, 0.5, 5), AlligatorDecima(uvw), 1.0);
+    OutputNoise[id] = float4(id.x & id.y & id.z, PerlinWorley(uvw, 5, 0.0, 5), AlligatorDecima(uvw), 1.0);
+}
+
+[numthreads(8, 8, 1)]
+void CloudMapCS(uint3 id : SV_DispatchThreadID)
+{
+    float2 uv = TexelToUV(id.xy, ResolutionInv);
+    
+    float p = PerlinFBM2(float3(uv, 0.0), 4, 5) * 2.0 - 1.0;
+    OutputMap[id.xy] = float4(abs(p), PerlinWorley(float3(uv, 0.0), 5, 0.0, 5), 0.0, 1.0);
 }

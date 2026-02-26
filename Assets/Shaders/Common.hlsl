@@ -132,26 +132,35 @@ struct RayCastResult
     bool mInside;
 };
 
-// Returns distance to first and second box intersection
-bool RayBoxIntersect(float3 boundsMin, float3 boundsMax, Ray inRay, out float2 hit)
+// Test for ray-box intersection. Returns true if there is at least one intersection.
+// If ray origin is inside the sphere, mInside is set to true and mT0 will be 0.
+// Properpties of outResult are not set if there was no hit.
+bool RayBoxIntersection(float3 inBoundsMin, float3 inBoundsMax, Ray inRay, out RayCastResult outResult)
 {
     float3 invRaydir = 1.0 / inRay.mDirection;
 
-    float3 t0 = (boundsMin - inRay.mOrigin) * invRaydir;
-    float3 t1 = (boundsMax - inRay.mOrigin) * invRaydir;
+    float3 t0 = (inBoundsMin - inRay.mOrigin) * invRaydir;
+    float3 t1 = (inBoundsMax - inRay.mOrigin) * invRaydir;
     float3 tmin = min(t0, t1);
     float3 tmax = max(t0, t1);
                 
-    float dstA = max(max(tmin.x, tmin.y), tmin.z);
-    float dstB = min(tmax.x, min(tmax.y, tmax.z));
+    outResult.mT0 = max(max(tmin.x, tmin.y), tmin.z);
+    outResult.mT1 = min(tmax.x, min(tmax.y, tmax.z));
+    outResult.mInside = false;
     
-    if (dstA > dstB)
-    {
-        hit = -1;
+    if (outResult.mT0 > outResult.mT1)
         return false;
+    
+    if (outResult.mT0 < 0.0)
+    {
+        // T0 and T1 are both negative -> box is behind ray origin
+        if (outResult.mT1 < 0.0)
+            return false;
+        
+        outResult.mInside = true;
+        outResult.mT0 = 0.0;
     }
     
-    hit = float2(dstA, dstB);
     return true;
 }
 

@@ -35,8 +35,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 		public bool UseJitter = true;
 
-		public Vector3 SphereCenter = Vector3.zero;
-		public float SphereRadius = 1.0f;
+		public Vector3 BoundsMin = -Vector3.one;
+		public Vector3 BoundsMax =  Vector3.one;
 
 		[Header("Noise Parameters")]
 
@@ -99,7 +99,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 	NoisePass m_NoisePass;
 	bool m_RegenerateNoise = true;
 
-	public RTHandle GetCloudNoiseTexture() => m_NoisePass?.Noise;
+	public RTHandle GetCloudNoiseTexture() => m_NoisePass?.CloudNoise;
+	public RTHandle GetCloudMapTexture() => m_NoisePass?.CloudMap;
 
 	// Called when the renderer feature is created by Unity
 	public override void Create()
@@ -117,7 +118,9 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			return;
 		}
 
-		if (m_RegenerateNoise || m_NoisePass.Noise == null)
+		if (m_RegenerateNoise || 
+			m_NoisePass?.CloudNoise == null || 
+			m_NoisePass?.CloudMap == null)
 		{
 			m_RegenerateNoise = false;
 
@@ -138,7 +141,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		}
 		else
 		{
-			m_CloudsPass.Setup(m_CloudsShader, GetCloudNoiseTexture());
+			m_CloudsPass.Setup(m_CloudsShader, GetCloudNoiseTexture(), GetCloudMapTexture());
 			renderer.EnqueuePass(m_CloudsPass);
 		}
 	}
@@ -160,7 +163,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 		ComputeShader m_Shader;
 		int m_Kernel;
-		RTHandle m_CloudsNoise;
+		RTHandle m_CloudNoise;
+		RTHandle m_CloudMap;
 		readonly CloudsRenderPassSettings m_Settings;
 
 		public CloudsPass(CloudsRenderPassSettings settings)
@@ -168,11 +172,12 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			m_Settings = settings;
 		}
 
-		public void Setup(ComputeShader inShader, RTHandle inCloudsNoise)
+		public void Setup(ComputeShader inShader, RTHandle inCloudNoise, RTHandle inCloudMap)
 		{
 			m_Shader = inShader;
 			m_Kernel = m_Shader.FindKernel("CSMain");
-			m_CloudsNoise = inCloudsNoise;
+			m_CloudNoise = inCloudNoise;
+			m_CloudMap = inCloudMap;
 
 			requiresIntermediateTexture = true;
 			renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
@@ -186,7 +191,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			public TextureHandle Output;
 			public TextureHandle SceneTexture;
 			public TextureHandle DepthTexture;
-			public TextureHandle CloudsNoise;
+			public TextureHandle CloudNoise;
+			public TextureHandle CloudMap;
 
 			// Data
 			public Vector2 ViewportDimensions;
@@ -220,15 +226,16 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			inCtx.cmd.SetComputeFloatParam(m_Shader, "Eccentricity", m_Settings.Eccentricity);
 			inCtx.cmd.SetComputeIntParam(m_Shader, "UseJitter", m_Settings.UseJitter ? 1 : 0);
 
-			inCtx.cmd.SetComputeVectorParam(m_Shader, "SphereCenter", m_Settings.SphereCenter);
-			inCtx.cmd.SetComputeFloatParam(m_Shader, "SphereRadius", m_Settings.SphereRadius);
+			inCtx.cmd.SetComputeVectorParam(m_Shader, "BoundsMin", m_Settings.BoundsMin);
+			inCtx.cmd.SetComputeVectorParam(m_Shader, "BoundsMax", m_Settings.BoundsMax);
 
 			inCtx.cmd.SetComputeVectorParam(m_Shader, "SunDirection", inData.SunDirection);
 			inCtx.cmd.SetComputeVectorParam(m_Shader, "SunColor", inData.SunColor);
 
 			inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "Result", inData.Output);
 			inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "SceneTexture", inData.SceneTexture);
-			inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CloudsNoise", inData.CloudsNoise);
+			inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CloudNoise", inData.CloudNoise);
+			inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CloudMap", inData.CloudMap);
 
 			inCtx.cmd.SetComputeVectorParam(m_Shader, "ActiveChannel", m_Settings.ChannelMask);
 			inCtx.cmd.SetComputeFloatParam(m_Shader, "Slice", m_Settings.Slice);
@@ -276,11 +283,13 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			data.SceneTexture = source;
 			// TOOD: Test that this depth texture is correct
 			// data.DepthTexture = resourceData.activeDepthTexture;
-			data.CloudsNoise = renderGraph.ImportTexture(m_CloudsNoise);
+			data.CloudNoise = renderGraph.ImportTexture(m_CloudNoise);
+			data.CloudMap = renderGraph.ImportTexture(m_CloudMap);
 
 			builder.UseTexture(destination, AccessFlags.Write);
 			builder.UseTexture(source, AccessFlags.Read);
-			builder.UseTexture(data.CloudsNoise, AccessFlags.Read);
+			builder.UseTexture(data.CloudNoise, AccessFlags.Read);
+			builder.UseTexture(data.CloudMap, AccessFlags.Read);
 			builder.SetRenderFunc((PassData inData, ComputeGraphContext inContext) => ExecutePass(inData, inContext));
 
 			// Swap camera color buffer with the cloud texture
@@ -292,40 +301,54 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 	{
 		#region PassFields
 
-		ComputeShader m_Shader;
-		int m_Kernel;
-
-		RTHandle m_NoiseHandle;
-
-		int m_Resolution = 128;
-
-		public RTHandle Noise => m_NoiseHandle;
-
 		NoiseRenderPassSettings m_Settings;
+		ComputeShader m_Shader;
+
+		int m_KernelNoise;
+		int m_KernelMap;
+
+		RTHandle m_HandleNoise;
+		RTHandle m_HandleMap;
+
+		int m_ResolutionNoise = 128;
+		int m_ResolutionMap = 512;
+
+		public RTHandle CloudNoise => m_HandleNoise;
+		public RTHandle CloudMap => m_HandleMap;
 
 		#endregion
 
 		public NoisePass(NoiseRenderPassSettings inSettings)
 		{
 			m_Settings = inSettings;
-			renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
+
+			// If we need to create textures, do it before doing anything else
+			renderPassEvent = RenderPassEvent.BeforeRendering;
 		}
 
 		public void Setup(ComputeShader inShader)
 		{
 			m_Shader = inShader;
-			m_Kernel = m_Shader.FindKernel("CSMain");
 
-			if (m_NoiseHandle == null ||
-				m_NoiseHandle.rt.width != m_Resolution ||
-				m_NoiseHandle.rt.height != m_Resolution ||
-				m_NoiseHandle.rt.volumeDepth != m_Resolution)
+			m_KernelNoise = m_Shader.FindKernel("CloudNoiseCS");
+			m_KernelMap = m_Shader.FindKernel("CloudMapCS");
+
+			CreateNoiseTexture();
+			CreateMapTexture();
+		}
+
+		private void CreateNoiseTexture()
+		{
+			if (m_HandleNoise == null ||
+				m_HandleNoise.rt.width != m_ResolutionNoise ||
+				m_HandleNoise.rt.height != m_ResolutionNoise ||
+				m_HandleNoise.rt.volumeDepth != m_ResolutionNoise)
 			{
-				m_NoiseHandle?.Release();
+				m_HandleNoise?.Release();
 
-				var desc = new RenderTextureDescriptor(m_Resolution, m_Resolution, GraphicsFormat.R16G16B16A16_SFloat, 0)
+				var desc = new RenderTextureDescriptor(m_ResolutionNoise, m_ResolutionNoise, GraphicsFormat.R16G16B16A16_SFloat, 0)
 				{
-					volumeDepth = m_Resolution,
+					volumeDepth = m_ResolutionNoise,
 					dimension = TextureDimension.Tex3D,
 					enableRandomWrite = true,
 					msaaSamples = 1,
@@ -334,7 +357,28 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					autoGenerateMips = false,
 				};
 
-				m_NoiseHandle = RTHandles.Alloc(desc, name: "_CloudNoiseRT");
+				m_HandleNoise = RTHandles.Alloc(desc, name: "_CloudNoise3D");
+			}
+		}
+
+		private void CreateMapTexture()
+		{
+			if (m_HandleMap == null ||
+				m_HandleMap.rt.width != m_ResolutionMap ||
+				m_HandleMap.rt.height != m_ResolutionMap)
+			{
+				m_HandleMap?.Release();
+
+				var desc = new RenderTextureDescriptor(m_ResolutionMap, m_ResolutionMap, GraphicsFormat.R16G16B16A16_SFloat, 0)
+				{
+					dimension = TextureDimension.Tex2D,
+					enableRandomWrite = true,
+					msaaSamples = 1,
+					sRGB = false,
+					useMipMap = false,
+				};
+
+				m_HandleMap = RTHandles.Alloc(desc, name: "_CloudMap");
 			}
 		}
 
@@ -348,31 +392,67 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 		public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
 		{
-			TextureHandle textureHandle = renderGraph.ImportTexture(m_NoiseHandle);
+			// Import noise and map textures into the render graph
+			TextureHandle noiseHandle = renderGraph.ImportTexture(m_HandleNoise);
+			TextureHandle mapHandle = renderGraph.ImportTexture(m_HandleMap);
 
-			using IComputeRenderGraphBuilder builder = renderGraph.AddComputePass("Cloud Noise Pass", out PassData data);
-			data.Shader = m_Shader;
-			data.Kernel = m_Kernel;
-			data.Output = textureHandle;
-			data.ResolutionInv = 1.0f / m_Resolution;
+			// Add compute passes
+			RecordNoisePass(renderGraph, noiseHandle);
+			RecordMapPass(renderGraph, mapHandle);
 
-			builder.UseTexture(textureHandle, AccessFlags.Write);
+			// Generate mips for 3D noise texture
+			m_HandleNoise.rt.GenerateMips();
+		}
 
-			builder.SetRenderFunc((PassData inD, ComputeGraphContext inCtx) =>
+		private void RecordNoisePass(RenderGraph inRenderGraph, TextureHandle inNoiseHandle)
+		{
+			using (IComputeRenderGraphBuilder builder = inRenderGraph.AddComputePass("Cloud Noise Pass", out PassData data))
 			{
-				inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "Output", inD.Output);
-				inCtx.cmd.SetComputeFloatParam(inD.Shader, "ResolutionInv", inD.ResolutionInv);
+				data.Shader = m_Shader;
+				data.Kernel = m_KernelNoise;
+				data.Output = inNoiseHandle;
+				data.ResolutionInv = 1.0f / m_ResolutionNoise;
 
-				GraphicsHelper.DispatchXYZ(inCtx, inD.Shader, inD.Kernel, m_Resolution);
-			});
+				builder.UseTexture(inNoiseHandle, AccessFlags.Write);
 
-			m_NoiseHandle.rt.GenerateMips();
+				builder.SetRenderFunc((PassData inD, ComputeGraphContext inCtx) =>
+				{
+					inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "OutputNoise", inD.Output);
+					inCtx.cmd.SetComputeFloatParam(inD.Shader, "ResolutionInv", inD.ResolutionInv);
+
+					GraphicsHelper.DispatchXYZ(inCtx, inD.Shader, inD.Kernel, m_ResolutionNoise);
+				});
+			}
+		}
+
+		private void RecordMapPass(RenderGraph inRenderGraph, TextureHandle inMapHandle)
+		{
+			using (IComputeRenderGraphBuilder builder = inRenderGraph.AddComputePass("Cloud Map Pass", out PassData data))
+			{
+				data.Shader = m_Shader;
+				data.Kernel = m_KernelMap;
+				data.Output = inMapHandle;
+				data.ResolutionInv = 1.0f / m_ResolutionMap;
+
+				builder.UseTexture(inMapHandle, AccessFlags.Write);
+
+				builder.SetRenderFunc((PassData inD, ComputeGraphContext inCtx) =>
+				{
+					inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "OutputMap", inD.Output);
+					inCtx.cmd.SetComputeFloatParam(inD.Shader, "ResolutionInv", inD.ResolutionInv);
+
+					GraphicsHelper.DispatchXY(inCtx, inD.Shader, inD.Kernel, m_ResolutionMap);
+				});
+			}
 		}
 
 		public void Cleanup()
 		{
-			m_NoiseHandle?.Release();
-			m_NoiseHandle = null;
+			m_HandleNoise?.Release();
+			m_HandleNoise = null;
+
+			m_HandleMap?.Release();
+			m_HandleMap = null;
 		}
 	}
 }

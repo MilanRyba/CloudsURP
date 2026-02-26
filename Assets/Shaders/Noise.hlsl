@@ -97,7 +97,7 @@ float PerlinFBM2(float3 inPosition, int inFrequency, int inOctaves)
     return (sum / amplitudeSum) * 0.5 + 0.5;
 }
 
-float PerlinWorley(float3 inPosition, float inFrequency, float3 inOffset, float inAmplitude, float inRoughness, float inOctaves)
+float PerlinWorley(float3 inPosition, float inFrequency, float3 inOffset, float inOctaves)
 {
     float perlin = PerlinFBM(inPosition, inFrequency, inOffset, inOctaves);
     perlin = Remap(perlin, -0.6, 0.6, 0, 1);
