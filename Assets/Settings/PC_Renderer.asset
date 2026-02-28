@@ -16,7 +16,7 @@ MonoBehaviour:
   m_CloudsShader: {fileID: 7200000, guid: c1a3c28a60de34a4ba3ae9a62514b96e, type: 3}
   m_NoiseShader: {fileID: 7200000, guid: 3b1578aafded6614ab2e785191559d1b, type: 3}
   m_CloudsSettings:
-    SampleCount: 32
+    SampleCount: 64
     BackgroundColor: {r: 0.572, g: 0.772, b: 0.921, a: 1}
     UseBackgroundColor: 0
     Absorption: 0.1
@@ -24,19 +24,17 @@ MonoBehaviour:
     Density: 1
     Eccentricity: 0.1
     UseJitter: 1
-    BoundsMin: {x: -1, y: -1, z: -1}
-    BoundsMax: {x: 1, y: 1, z: 1}
-    ActiveChannel: 2
+    CloudType: 0
+    BoundsMin: {x: 0, y: 0, z: 0}
+    BoundsMax: {x: 40, y: 10, z: 40}
+    ActiveChannel: 1
     Slice: 0
     Mip: 0
     DebugTextures: 1
   m_NoiseSettings:
-    WorleyFrequency: 4
-    PerlinFrequency: 5
-    PerlinLacunarity: 2
-    PerlinPersistence: 0.5
-    PerlinOctaves: 5
-    AlligatorSeed: 1
+    Coverage: 1
+    NewMin: -2
+    NewMax: 2.5
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -35,6 +35,9 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 		public bool UseJitter = true;
 
+		[Range(0.0f, 1.0f)]
+		public float CloudType = 0.5f;
+
 		public Vector3 BoundsMin = -Vector3.one;
 		public Vector3 BoundsMax =  Vector3.one;
 
@@ -66,29 +69,40 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 	[Serializable]
 	class NoiseRenderPassSettings
 	{
-		[Header("Worley Noise Parameters")]
-
-		[Range(1, 16)]
-		public int WorleyFrequency = 4;
-
-		[Header("Perlin Noise Parameters")]
-
-		[Range(1, 16)]
-		public int PerlinFrequency = 5;
-
-		[Range(2, 4)]
-		public int PerlinLacunarity = 2;
+		[Header("Cloud Map Parameters")]
 
 		[Range(0.0f, 1.0f)]
-		public float PerlinPersistence = 0.5f;
+		public float Coverage = 1.0f;
 
-		[Range(1, 16)]
-		public int PerlinOctaves = 5;
+		[Range(-4.0f, 2.0f)]
+		public float NewMin = 0.0f;
 
-		[Header("Alligator Noise Parameters")]
+		[Range(-2.0f, 4.0f)]
+		public float NewMax = 1.0f;
 
-		[Min(1)]
-		public int AlligatorSeed = 1;
+		// [Header("Worley Noise Parameters")]
+		// 
+		// [Range(1, 16)]
+		// public int WorleyFrequency = 4;
+		// 
+		// [Header("Perlin Noise Parameters")]
+		// 
+		// [Range(1, 16)]
+		// public int PerlinFrequency = 5;
+		// 
+		// [Range(2, 4)]
+		// public int PerlinLacunarity = 2;
+		// 
+		// [Range(0.0f, 1.0f)]
+		// public float PerlinPersistence = 0.5f;
+		// 
+		// [Range(1, 16)]
+		// public int PerlinOctaves = 5;
+		// 
+		// [Header("Alligator Noise Parameters")]
+		// 
+		// [Min(1)]
+		// public int AlligatorSeed = 1;
 	}
 
 	[SerializeField] ComputeShader m_CloudsShader;
@@ -225,6 +239,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			inCtx.cmd.SetComputeFloatParam(m_Shader, "Density", m_Settings.Density);
 			inCtx.cmd.SetComputeFloatParam(m_Shader, "Eccentricity", m_Settings.Eccentricity);
 			inCtx.cmd.SetComputeIntParam(m_Shader, "UseJitter", m_Settings.UseJitter ? 1 : 0);
+			inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudType", m_Settings.CloudType);
 
 			inCtx.cmd.SetComputeVectorParam(m_Shader, "BoundsMin", m_Settings.BoundsMin);
 			inCtx.cmd.SetComputeVectorParam(m_Shader, "BoundsMax", m_Settings.BoundsMax);
@@ -388,6 +403,9 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			public int Kernel;              // Kernel index
 			public TextureHandle Output;    // Output noise texture
 			public float ResolutionInv;     // Reciprocal of the texture resolution
+			public float Coverage;
+			public float NewMin;
+			public float NewMax;
 		}
 
 		public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -434,12 +452,20 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 				data.Output = inMapHandle;
 				data.ResolutionInv = 1.0f / m_ResolutionMap;
 
+				data.Coverage = m_Settings.Coverage;
+				data.NewMin = m_Settings.NewMin;
+				data.NewMax = m_Settings.NewMax;
+
 				builder.UseTexture(inMapHandle, AccessFlags.Write);
 
 				builder.SetRenderFunc((PassData inD, ComputeGraphContext inCtx) =>
 				{
 					inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "OutputMap", inD.Output);
 					inCtx.cmd.SetComputeFloatParam(inD.Shader, "ResolutionInv", inD.ResolutionInv);
+
+					inCtx.cmd.SetComputeFloatParam(inD.Shader, "Coverage", inD.Coverage);
+					inCtx.cmd.SetComputeFloatParam(inD.Shader, "NewMin", inD.NewMin);
+					inCtx.cmd.SetComputeFloatParam(inD.Shader, "NewMax", inD.NewMax);
 
 					GraphicsHelper.DispatchXY(inCtx, inD.Shader, inD.Kernel, m_ResolutionMap);
 				});

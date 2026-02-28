@@ -6,6 +6,10 @@
 
 float ResolutionInv;
 
+float Coverage;
+float NewMin;
+float NewMax;
+
 RWTexture3D<float4> OutputNoise;
 RWTexture2D<float4> OutputMap;
 
@@ -20,8 +24,19 @@ void CloudNoiseCS(uint3 id : SV_DispatchThreadID)
 [numthreads(8, 8, 1)]
 void CloudMapCS(uint3 id : SV_DispatchThreadID)
 {
-    float2 uv = TexelToUV(id.xy, ResolutionInv);
+    float3 uvw = TexelToUV(id, ResolutionInv);
+    float coverage = Coverage;
     
-    float p = PerlinFBM2(float3(uv, 0.0), 4, 5) * 2.0 - 1.0;
-    OutputMap[id.xy] = float4(abs(p), PerlinWorley(float3(uv, 0.0), 5, 0.0, 5), 0.0, 1.0);
+    float perlinWorley = PerlinWorley(uvw, 4, 0.0, 5);
+    perlinWorley = Remap(perlinWorley, 0.0, 1.0, NewMin, NewMax);
+    perlinWorley = saturate(perlinWorley);
+    // coverage *= perlinWorley;
+    
+    float perlin = PerlinFBM2(uvw, 4, 5);
+    perlin = Remap(perlin, 0.0, 1.0, NewMin, NewMax);
+    perlin = saturate(perlin);
+    coverage *= perlin;
+    
+    coverage = saturate(coverage);
+    OutputMap[id.xy] = float4(coverage, 0.0, 0.0, 1.0);
 }

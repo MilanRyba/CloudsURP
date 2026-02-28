@@ -20,6 +20,7 @@ float Scattering;
 float Density; // Essentialy a density scale
 float Eccentricity;
 bool UseJitter;
+float CloudType;
 
 float3 BoundsMin;
 float3 BoundsMax;
@@ -63,10 +64,36 @@ struct CloudRenderingPixelData
     float mTransmittance;
 };
 
+//
+// Funcion to get a fractional height value within the cloud rendering domain. 
+//
+float GetFractionFromValue(float inValue, float inMin, float inMax)
+{
+    return saturate((inValue - inMin) / (inMax - inMin));
+}
+
+float GetVerticalProfile(float inHeight, float inCloudType)
+{
+    inHeight = saturate(inHeight);
+    
+    float stratusFactor = 1.0 - saturate(inCloudType * 2.0);
+    float stratocumulusFactor = 1.0 - abs(inCloudType - 0.5) * 2.0;
+    float cumulusFactor = saturate(inCloudType - 0.5) * 2.0;
+    
+    float4 baseGradient = stratusFactor       * float4(0.0,  0.1,    0.2,  0.3) + 
+                          stratocumulusFactor * float4(0.02, 0.2,    0.48, 0.625) + 
+                          cumulusFactor       * float4(0.00, 0.1625, 0.88, 0.98);
+    
+    return Remap(inHeight, baseGradient.x, baseGradient.y, 0.0, 0.75) * Remap(inHeight, baseGradient.z, baseGradient.w, 1.0, 0.25);
+}
+
 float SampleDensity(float3 inSamplePosition)
 {
-    float noise = CloudNoise.SampleLevel(sLinearRepeat, inSamplePosition, 0.0).b;
-    return max(0.0, noise) * 0.5;
+    float height01 = GetFractionFromValue(inSamplePosition.y, BoundsMin.y, BoundsMax.y);
+    float verticalProfile = GetVerticalProfile(height01, CloudType);
+    verticalProfile = saturate(verticalProfile);
+    float coverage = CloudMap.SampleLevel(sLinearRepeat, inSamplePosition.xz * 0.025, 0.0).r;
+    return verticalProfile * coverage;
 }
 
 float SampleDensityToSun(Ray inLightRay, float inDistanceToBoundary)
@@ -170,13 +197,13 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             return;
         }
         
-        debugUV = InverseLerp((float2) id.xy, float2(290.0f, 20.0f), float2(560.0f, 276.0f));
-        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
-        {
-            float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            Result[id.xy] = MaskChannels(CloudNoise.SampleLevel(sPointRepeat, pos, Mip), ActiveChannel);
-            return;
-        }
+        // debugUV = InverseLerp((float2) id.xy, float2(290.0f, 20.0f), float2(560.0f, 276.0f));
+        // if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        // {
+        //     float3 pos = float3(debugUV.x, Slice, debugUV.y);
+        //     Result[id.xy] = MaskChannels(CloudNoise.SampleLevel(sPointRepeat, pos, Mip), ActiveChannel);
+        //     return;
+        // }
     }
     
     float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
