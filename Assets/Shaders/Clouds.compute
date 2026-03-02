@@ -25,6 +25,7 @@ float3 SunDirection;
 float3 SunColor;
 
 Texture2D SceneTexture;
+Texture2D DepthTexture;
 RWTexture2D<float4> Result;
 Texture3D CloudNoise;
 Texture2D CloudMap;
@@ -129,7 +130,8 @@ float SampleCloudDensity(float3 inSamplePosition)
     // Sample cloud map for coverage
     float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, uv * CoverageRepeat, 0.0);
     float coverage = cloudMapSample.r;
-    return coverage * DensityScale;
+    
+    return coverage * DensityScale * saturate(verticalProfile);
     
     // Use remap to apply the cloud coverage attribute
     float baseCloudWithCoverage = Remap(baseCloud, coverage, 1.0, 0.0, 1.0);
@@ -226,6 +228,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     if (any((float2) id.xy >= ViewportDimensions))
         return;
     
+    // A way to inspect textures used in this shader
     if (DebugTextures)
     {
         float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(276.0f, 276.0f));
@@ -245,16 +248,24 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         }
     }
     
+    // Create UV's and sample color and depth buffer from scene
     float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
+    float sceneDepth = DepthTexture.SampleLevel(sPointClamp, uv, 0).r;
+    float4 sceneColor = SceneTexture.SampleLevel(sPointClamp, uv, 0);
     
-    float3 backgroundColor = SceneTexture.SampleLevel(sPointClamp, uv, 0).rgb;
-
+    // Geometry in the scene is obscuring the clouds
+    if (sceneDepth > 0.0)
+    {
+        Result[id.xy] = sceneColor;
+        return;
+    }
+    
     Ray ray = GetCameraRay(uv, CameraPosition, ProjInv, ViewInv);
     
     RayCastResult hit;
     if (RaySphereIntersection(EARTH_CENTER, EARTH_RADIUS, ray, hit))
     {
-        Result[id.xy] = float4(backgroundColor, 1.0);
+        Result[id.xy] = sceneColor;
         return;
     }
     
@@ -284,7 +295,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     
     RaymarchClouds(globalInfo, raySegment, pixelData);
     
-    float3 finalColor = backgroundColor * pixelData.mTransmittance + pixelData.mScattering;
-    
+    float3 finalColor = sceneColor.rgb * pixelData.mTransmittance + pixelData.mScattering;
     Result[id.xy] = float4(finalColor, 1.0);
 }

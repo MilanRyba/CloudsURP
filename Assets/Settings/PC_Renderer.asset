@@ -22,7 +22,7 @@ MonoBehaviour:
     DensityScale: 0.1
     Eccentricity: 0.1
     UseJitter: 1
-    CloudType: 1
+    CloudType: 0.463
     CoverageRepeat: 4.7
     NoiseScale: 100
     ActiveChannel: 0

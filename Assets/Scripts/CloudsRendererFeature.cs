@@ -247,6 +247,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 			inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "Result", inData.Output);
 			inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "SceneTexture", inData.SceneTexture);
+			inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "DepthTexture", inData.DepthTexture);
 			inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CloudNoise", inData.CloudNoise);
 			inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CloudMap", inData.CloudMap);
 
@@ -294,13 +295,13 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 			data.Output = destination;
 			data.SceneTexture = source;
-			// TOOD: Test that this depth texture is correct
-			// data.DepthTexture = resourceData.activeDepthTexture;
+			data.DepthTexture = resourceData.activeDepthTexture;
 			data.CloudNoise = renderGraph.ImportTexture(m_CloudNoise);
 			data.CloudMap = renderGraph.ImportTexture(m_CloudMap);
 
 			builder.UseTexture(destination, AccessFlags.Write);
 			builder.UseTexture(source, AccessFlags.Read);
+			builder.UseTexture(data.DepthTexture, AccessFlags.Read);
 			builder.UseTexture(data.CloudNoise, AccessFlags.Read);
 			builder.UseTexture(data.CloudMap, AccessFlags.Read);
 			builder.SetRenderFunc((PassData inData, ComputeGraphContext inContext) => ExecutePass(inData, inContext));
