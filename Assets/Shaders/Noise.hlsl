@@ -97,9 +97,9 @@ float PerlinFBM2(float3 inPosition, int inFrequency, int inOctaves)
     return (sum / amplitudeSum) * 0.5 + 0.5;
 }
 
-float PerlinWorley(float3 inPosition, float inFrequency, float3 inOffset, float inOctaves)
+float PerlinWorley(float3 inPosition, int inFrequency, float inOctaves)
 {
-    float perlin = PerlinFBM(inPosition, inFrequency, inOffset, inOctaves);
+    float perlin = PerlinFBM(inPosition, inFrequency, 0.0, inOctaves);
     perlin = Remap(perlin, -0.6, 0.6, 0, 1);
     
     float baseFrequency = 5.0;
@@ -156,10 +156,10 @@ float AlligatorFBM(float3 inPosition, int inFrequency, float3 inOffset, int inOc
     return result;
 }
 
-float AlligatorDecima(float3 inPosition)
+float AlligatorDecima(float3 inPosition, int inFrequency)
 {
-    float alligator1 = AlligatorFBM(inPosition, 4, float3(200.0, 200.0, 0.0), 5) * 1.2;
-    alligator1 = Remap(alligator1, 0.01, 0.6, 0.0, 1.0);
+    float alligator1 = AlligatorFBM(inPosition, inFrequency, float3(200.0, 200.0, 0.0), 5) * 1.2;
+    alligator1 = Remap(alligator1, 0.02, 0.6, -0.01, 1.3);
     
     return alligator1;
 }

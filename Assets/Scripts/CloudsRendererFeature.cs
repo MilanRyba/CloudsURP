@@ -23,12 +23,11 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Range(0, 128), Tooltip("Number of samles the ray marcher will take.")]
 		public int SampleCount = 32;
 
-		public Color BackgroundColor = new Color(0.572f, 0.772f, 0.921f);
-		public bool UseBackgroundColor = false;
-
 		public float Absorption = 0.1f;
 		public float Scattering = 0.1f;
-		public float Density = 1.0f;
+
+		[Range(0.0f, 1.0f)]
+		public float DensityScale = 1.0f;
 
 		[Range(-1.0f, 1.0f)]
 		public float Eccentricity = 0.1f;
@@ -38,8 +37,11 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Range(0.0f, 1.0f)]
 		public float CloudType = 0.5f;
 
-		public Vector3 BoundsMin = -Vector3.one;
-		public Vector3 BoundsMax =  Vector3.one;
+		[Range (0.1f, 100.0f)]
+		public float CoverageRepeat = 6.0f;
+
+		[Range(0.0f, 100.0f)]
+		public float NoiseScale = 0.1f;
 
 		[Header("Noise Parameters")]
 
@@ -231,18 +233,14 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			inCtx.cmd.SetComputeIntParam(m_Shader, "SampleCount", m_Settings.SampleCount);
 			inCtx.cmd.SetComputeFloatParam(m_Shader, "Time", Time.time);
 
-			inCtx.cmd.SetComputeVectorParam(m_Shader, "BackgroundColor", m_Settings.BackgroundColor);
-			inCtx.cmd.SetComputeIntParam(m_Shader, "UseBackgroundColor", m_Settings.UseBackgroundColor ? 1 : 0);
-
 			inCtx.cmd.SetComputeFloatParam(m_Shader, "Absorption", m_Settings.Absorption);
 			inCtx.cmd.SetComputeFloatParam(m_Shader, "Scattering", m_Settings.Scattering);
-			inCtx.cmd.SetComputeFloatParam(m_Shader, "Density", m_Settings.Density);
+			inCtx.cmd.SetComputeFloatParam(m_Shader, "DensityScale", m_Settings.DensityScale);
 			inCtx.cmd.SetComputeFloatParam(m_Shader, "Eccentricity", m_Settings.Eccentricity);
 			inCtx.cmd.SetComputeIntParam(m_Shader, "UseJitter", m_Settings.UseJitter ? 1 : 0);
 			inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudType", m_Settings.CloudType);
-
-			inCtx.cmd.SetComputeVectorParam(m_Shader, "BoundsMin", m_Settings.BoundsMin);
-			inCtx.cmd.SetComputeVectorParam(m_Shader, "BoundsMax", m_Settings.BoundsMax);
+			inCtx.cmd.SetComputeFloatParam(m_Shader, "CoverageRepeat", m_Settings.CoverageRepeat);
+			inCtx.cmd.SetComputeFloatParam(m_Shader, "NoiseScale", m_Settings.NoiseScale);
 
 			inCtx.cmd.SetComputeVectorParam(m_Shader, "SunDirection", inData.SunDirection);
 			inCtx.cmd.SetComputeVectorParam(m_Shader, "SunColor", inData.SunColor);

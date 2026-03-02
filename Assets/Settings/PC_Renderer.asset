@@ -16,21 +16,19 @@ MonoBehaviour:
   m_CloudsShader: {fileID: 7200000, guid: c1a3c28a60de34a4ba3ae9a62514b96e, type: 3}
   m_NoiseShader: {fileID: 7200000, guid: 3b1578aafded6614ab2e785191559d1b, type: 3}
   m_CloudsSettings:
-    SampleCount: 64
-    BackgroundColor: {r: 0.572, g: 0.772, b: 0.921, a: 1}
-    UseBackgroundColor: 0
-    Absorption: 0.1
-    Scattering: 0.1
-    Density: 1
+    SampleCount: 128
+    Absorption: 0.02
+    Scattering: 0.05
+    DensityScale: 0.1
     Eccentricity: 0.1
     UseJitter: 1
-    CloudType: 0
-    BoundsMin: {x: 0, y: 0, z: 0}
-    BoundsMax: {x: 40, y: 10, z: 40}
-    ActiveChannel: 1
+    CloudType: 1
+    CoverageRepeat: 4.7
+    NoiseScale: 100
+    ActiveChannel: 0
     Slice: 0
     Mip: 0
-    DebugTextures: 1
+    DebugTextures: 0
   m_NoiseSettings:
     Coverage: 1
     NewMin: -2
