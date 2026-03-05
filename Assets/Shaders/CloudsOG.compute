@@ -1,0 +1,377 @@
+#pragma kernel CSMain
+
+#include "Common.hlsl"
+#include "Noise.hlsl"
+
+float2 ViewportDimensions;
+float2 ViewportDimensionsInv;
+float3 CameraPosition;
+float4x4 ProjInv;
+float4x4 ViewInv;
+
+float PlanetRadius;
+float AtmosphereBottomHeight;
+float AtmosphereTopHeight;
+
+float3 SunDirection;
+float3 SunColor;
+
+int NumSteps;
+float LargeStepSizeMultiplier;
+uint UseJitter;
+
+float GlobalDensity;
+float GlobalScale;
+float ShapeNoiseScale;
+float DetailNoiseScale;
+float Coverage;
+float CloudType;
+
+float3 WindDirection;
+float CloudSpeed;
+float CloudTopOffset;
+int Time;
+
+// Phase function parameters
+float Eccentricity;
+float Intensity;
+float Spread;
+
+Texture3D ShapeTexture;
+Texture3D DetailTexture;
+Texture2D CloudMap;
+Texture2D SceneTexture;
+Texture2D DepthTexture;
+RWTexture2D<float4> Output;
+
+SamplerState sLinearRepeat;
+SamplerState sLinearClamp;
+SamplerState sPointRepeat;
+SamplerState sPointClamp;
+
+uint ShowTextures;
+float Slice;
+float4 ChannelMask;
+
+// uint EarlyTerminatedPixels;
+// uint EarlyExit = false;
+
+#define PLANET_CENTER float3(0, -PlanetRadius, 0)
+#define CLOUDS_BOTTOM_LAYER (PlanetRadius + AtmosphereBottomHeight)
+#define CLOUDS_TOP_LAYER (PlanetRadius + AtmosphereTopHeight)
+
+float Phase(float LoV, float eccentricity, float silverIntensity, float silverSpread)
+{
+    return max(HenyeyGreenstein(LoV, eccentricity), silverIntensity * HenyeyGreenstein(LoV, 0.99 - silverSpread));
+}
+
+// Fractional value for sample position in the cloud layer
+float GetHeightFractionForPoint(float3 p)
+{
+    float height = length(p - PLANET_CENTER);
+    return saturate((height - CLOUDS_BOTTOM_LAYER) / (CLOUDS_TOP_LAYER - CLOUDS_BOTTOM_LAYER));
+}
+
+float GetVerticalProfile(float inHeight, float inCloudType)
+{
+    const float4 stratusGradient = float4(0.0, 0.05, 0.18, 0.22);
+    const float4 cumulusGradient = float4(0.0, 0.2, 0.42, 0.6);
+    const float4 cumulonimbusGradient = float4(0.0, 0.08, 0.8, 0.98);
+
+    float a = 1.0f - saturate(inCloudType * 2.0f);
+    float b = 1.0f - abs(inCloudType - 0.5f) * 2.0f;
+    float c = saturate(inCloudType - 0.5f) * 2.0f;
+    float4 gradient = stratusGradient * a + cumulusGradient * b + cumulonimbusGradient * c;
+
+    float v1 = saturate(InverseLerp(inHeight, gradient.x, gradient.y));
+    float v2 = saturate(InverseLerp(inHeight, gradient.w, gradient.z));
+    return v1 * v2;
+}
+
+float SampleCloudDensity(float3 p, bool cheapSample)
+{
+    float heightFraction = GetHeightFractionForPoint(p);
+    
+    // Skew in wind direction
+    // p += heightFraction * WindDirection * CloudTopOffset;
+    
+    // Animate clouds in wind direction and add a small upward bias to the wind direction
+    // p += (WindDirection + float3(0, 0.1, 0)) * Time * CloudSpeed;
+    
+    p *= GlobalScale;
+    
+    // Read the low-frequency Perlin-Worley noise and Worley noises.
+    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, p * ShapeNoiseScale, 0);
+    
+    // Build an FBM out of the low frequency Worley noises
+    // that can be used to add detail to the low-frequency Perlin-Worley noise.
+    float lowFreqFBM = dot(lowFrequencyNoises.gba, float3(0.625, 0.25, 0.125));
+
+    // Define the base cloud shape by dilating it with the low-frequency FBM made of Worley noise
+    float baseCloud = Remap(lowFrequencyNoises.r, -(1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
+    
+    // Apply the density height gradient to the base cloud shape
+    // float heightGradient = HeightGradient.SampleLevel(sLinearClamp, float2(CloudType, heightFraction), 0).x;
+    float heightGradient = GetVerticalProfile(heightFraction, CloudType);
+    baseCloud *= heightGradient;
+    
+    // Use remap to apply the cloud coverage attribute
+    baseCloud = Remap(baseCloud, 1.0 - Coverage, 1.0f, 0.0f, 1.0f);
+    
+    // Multiply the result by the cloud coverage attribute 
+    // so that smaller clouds are lighter and more aesthetically pleasing
+    baseCloud *= Coverage;
+    
+    if (cheapSample == false)
+    {
+        // Sample high-frequency noises
+        float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, p * DetailNoiseScale, 0).rgb;
+    
+        // Build high-frequency Worley noise FBM
+        float highFreqFBM = dot(highFrequencyNoises, float3(0.625, 0.25, 0.125));
+    
+        // Transition from wispy shapes to billowy shapes over height
+        float highFreqNoiseModifier = lerp(highFreqFBM, 1.0 - highFreqFBM, saturate(heightFraction * 5.0));
+    
+        // Erode the base cloud shape with the distorted high-frequency Worley noises
+        baseCloud = Remap(baseCloud, highFreqNoiseModifier * 0.4, 1.0, 0.0, 1.0);
+    }
+    
+    return saturate(baseCloud * GlobalDensity);
+}
+
+uint XORShift(inout uint rng_state)
+{
+	// Xorshift algorithm from George Marsaglia's paper.
+    rng_state ^= (rng_state << 13);
+    rng_state ^= (rng_state >> 17);
+    rng_state ^= (rng_state << 5);
+    return rng_state;
+}
+
+// Move to Random.hlsl
+uint HashU32(uint seed)
+{
+    uint state = seed * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
+}
+
+float Random01(inout uint rng_state)
+{
+    return asfloat(0x3f800000 | XORShift(rng_state) >> 9) - 1.0;
+}
+
+float LightMarch(float3 rayOrigin, float3 rayDirection)
+{
+    const uint NumLightMarches = 6;
+    
+    const float coneSize = 200.0f;
+    float stepSize = coneSize / NumLightMarches;
+
+    float totalDensity = 0;
+
+    uint seed = HashU32(0);
+    for (uint i = 0; i < NumLightMarches; ++i)
+    {
+        float3 rnd = float3(Random01(seed), Random01(seed), Random01(seed)) / 5.0f;
+        rayOrigin += rayDirection * stepSize + (stepSize * rnd * (i + 1));
+        totalDensity += max(0, SampleCloudDensity(rayOrigin, true) * stepSize);
+    }
+
+    rayOrigin += rayDirection * coneSize * 2;
+    totalDensity += max(0, SampleCloudDensity(rayOrigin, true) * stepSize);
+    return exp(-totalDensity);
+    
+    float beersLaw = exp(-totalDensity);
+    float powderSugarEffect = 1.0 - exp(-totalDensity * 2.0);
+    return 2.0 * beersLaw * powderSugarEffect;
+}
+
+float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
+{
+    float3 direction = endPos - startPos;
+    float pathLength = length(direction);
+    direction = normalize(direction);
+    
+    // 0 when looking at the horizon, 1 when looking directly up
+    float horizonFactor = abs(dot(direction, float3(0, 1, 0)));
+    float numSteps = lerp(NumSteps, NumSteps * 0.5, horizonFactor);
+    float baseStepSize = pathLength / numSteps;
+    
+    float3 p = startPos;
+    if (UseJitter)
+    {
+        float offset = InterleavedGradientNoise(float2(uv) + Time);
+        p += direction * offset * baseStepSize;
+    }
+    
+    SunDirection = normalize(-SunDirection);
+    float LoV = dot(SunDirection, direction);
+    float phase = Phase(LoV, Eccentricity, Intensity, Spread);
+    
+    float3 totalScattering = 0.0f;
+    float transmittance = 1.0f;
+    
+    float cloudTest = 0.0;
+    int zeroDensitySampleCount = 0;
+    
+    float remainingDst = pathLength;
+    while (remainingDst > 0.0)
+    {
+        // cloudTest starts as zero so we always evaluate the second case from the beginning
+        if (cloudTest > 0.0)
+        {
+            // Sample density the expensive way by setting the 
+            // last parameter to false, indicating a full sample
+            float sampledDensity = SampleCloudDensity(p, false);
+                
+            // If we just sample a zero, increment the counter
+            if (sampledDensity == 0.0)
+                zeroDensitySampleCount++;
+                
+            // If we are doing an expensive sample that is still potentially in the cloud
+            if (zeroDensitySampleCount != 6)
+            {
+                if (sampledDensity != 0.0)
+                {
+                    // LightMarch just walks in the given direction from the start point and takes X number of lighting samples                    
+                    float3 densityAlongLightRay = LightMarch(p, SunDirection) * SunColor;
+                    totalScattering += sampledDensity * transmittance * baseStepSize * (densityAlongLightRay * phase + float3(0.2, 0.2, 0.25));
+                    transmittance *= exp(-sampledDensity * baseStepSize);
+                    
+                    if (transmittance < 0.01)
+                    {
+                        // if (EarlyTerminatedPixels)
+                        //     EarlyExit = true;
+                        
+                        break;
+                    }
+                }
+                    
+                p += direction * baseStepSize;
+                remainingDst -= baseStepSize;
+            }
+            // If not, then set the cloud_test to zero so that we go back to the cheap sample case
+            else
+            {
+                cloudTest = 0.0;
+                zeroDensitySampleCount = 0;
+                
+                // Could we advance 'p' here??
+            }
+        }
+        else
+        {
+            // Sample density the cheap way, only using the low-frequency noise
+            cloudTest = SampleCloudDensity(p, true);
+            if (cloudTest == 0.0)
+            {
+                p += direction * baseStepSize * LargeStepSizeMultiplier;
+                remainingDst -= baseStepSize * LargeStepSizeMultiplier;
+            }
+        }
+    }
+    
+    return float4(totalScattering, transmittance);
+}
+
+float2 RaySphereTest(float3 center, float radius, float3 origin, float3 direction)
+{
+    float3 of = origin - center;
+    const float a = 1.0;
+    float b = 2.0 * dot(of, direction);
+    float c = dot(of, of) - radius * radius;
+    float discriminant = b * b - 4.0 * a * c;
+
+    if (discriminant > 0)
+    {
+        discriminant = sqrt(discriminant);
+        float dstToSphereNear = max(0.0, (-b - discriminant) / (2.0 * a));
+        float dstToSphereFar = (-b + discriminant) / (2.0 * a);
+
+        if (dstToSphereFar >= 0.0)
+        {
+            return float2(dstToSphereNear, dstToSphereFar - dstToSphereNear);
+        }
+    }
+    return float2(0.0, 0.0);
+}
+
+[numthreads(16, 16, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    if (any((float2) id.xy >= ViewportDimensions))
+        return;
+    
+    if (ShowTextures)
+    {
+        float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(276.0f, 276.0f));
+        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        {
+            float3 pos = float3(debugUV.x, Slice, debugUV.y);
+            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
+            return;
+        }
+        
+        debugUV = InverseLerp((float2) id.xy, float2(290.0f, 20.0f), float2(560.0f, 276.0f));
+        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        {
+            float3 pos = float3(debugUV.x, Slice, debugUV.y);
+            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
+            return;
+        }
+        
+        debugUV = InverseLerp((float2) id.xy, float2(600.0f, 20.0f), float2(876.0f, 276.0f));
+        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        {
+            Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), ChannelMask);
+            return;
+        }
+    }
+        
+    float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
+    float4 sceneColor = SceneTexture.SampleLevel(sPointClamp, uv, 0);
+    float sceneDepth = DepthTexture.SampleLevel(sPointClamp, uv, 0).r;
+    
+    // Geometry in the scene is obscuring the clouds
+    if (sceneDepth > 0.0)
+    {
+        Output[id.xy] = sceneColor;
+        return;
+    }
+    
+    // Create camera ray
+    Ray ray = GetCameraRay(uv, CameraPosition, ProjInv, ViewInv);
+    
+    RayCastResult hit;
+    if (RaySphereIntersection(PLANET_CENTER, PlanetRadius, ray, hit))
+    {
+        // We hit the planet
+        Output[id.xy] = sceneColor;
+        return;
+    }
+    
+    // Test for intersections with planet and clouds layers
+    float2 cloudsBottomLayerHit = RaySphereTest(PLANET_CENTER, CLOUDS_BOTTOM_LAYER, ray.mOrigin, ray.mDirection);
+    float2 cloudsTopLayerHit = RaySphereTest(PLANET_CENTER, CLOUDS_TOP_LAYER, ray.mOrigin, ray.mDirection);
+    
+    float dstToStart = cloudsBottomLayerHit.y;
+    float dstToEnd = cloudsTopLayerHit.y;
+    
+    if (dstToEnd <= dstToStart || dstToEnd < 0.0)
+    {
+        Output[id.xy] = float4(1, 0, 1, 1);
+        return;
+    }
+    
+    float3 startPos = ray.mOrigin + ray.mDirection * dstToStart;
+    float3 endPos = ray.mOrigin + ray.mDirection * dstToEnd;
+    
+    float4 scatteringTransmittance = RenderClouds(startPos, endPos, id.xy);
+    float3 color = sceneColor.rgb * scatteringTransmittance.w + scatteringTransmittance.xyz;
+    Output[id.xy] = float4(color, 1.0);
+    
+    // if (EarlyExit)
+    //     Output[id.xy] = float4(1, 0.1, 1, 1.0);
+}

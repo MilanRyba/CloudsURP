@@ -7,19 +7,28 @@ float2 ViewportDimensionsInv;
 float3 CameraPosition;
 float4x4 ProjInv;
 float4x4 ViewInv;
+float Time;
+
+float PlanetRadius;
+float2 AtmosphereHeightRange;
 
 int SampleCount;
-float Time;
+bool UseJitter;
+
+float DensityScale;
+float GlobalScale;
+float CoverageScale;
+float NoiseScale;
+// float DetailNoiseScale;
+float CloudType;
+
+float3 WindDirection;
+float CloudSpeed;
+float CloudTopOffset;
 
 float Absorption;
 float Scattering;
-float DensityScale;
 float Eccentricity;
-bool UseJitter;
-float CloudType;
-
-float CoverageRepeat;
-float NoiseScale;
 
 float3 SunDirection;
 float3 SunColor;
@@ -40,10 +49,10 @@ float Slice;
 float Mip;
 bool DebugTextures;
 
-#define EARTH_RADIUS 637800
+#define EARTH_RADIUS PlanetRadius
 #define EARTH_CENTER float3(0.0, -EARTH_RADIUS, 0.0)
-#define CLOUDS_BOTTOM_RADIUS (EARTH_RADIUS + 6000)
-#define CLOUDS_TOP_RADIUS (CLOUDS_BOTTOM_RADIUS + 10500)
+#define CLOUDS_BOTTOM_RADIUS (EARTH_RADIUS + AtmosphereHeightRange.x)
+#define CLOUDS_TOP_RADIUS (CLOUDS_BOTTOM_RADIUS + AtmosphereHeightRange.y)
 
 struct CloudRenderingGlobalInfo
 {
@@ -74,20 +83,20 @@ float GetFractionFromValue(float inValue, float inMin, float inMax)
     return saturate((inValue - inMin) / (inMax - inMin));
 }
 
-// Cloud types height density gradients
-#define STRATUS_GRADIENT float4(0.0, 0.1, 0.2, 0.3)
-#define STRATOCUMULUS_GRADIENT float4(0.02, 0.2, 0.48, 0.625)
-#define CUMULUS_GRADIENT float4(0.00, 0.1625, 0.88, 0.98)
-
 float GetVerticalProfile(float inHeight, float inCloudType)
 {
-    float stratusFactor = 1.0 - clamp(inCloudType * 2.0, 0.0, 1.0);
-    float stratoCumulusFactor = 1.0 - abs(inCloudType - 0.5) * 2.0;
-    float cumulusFactor = clamp(inCloudType - 0.5, 0.0, 1.0) * 2.0;
+    const float4 stratusGradient = float4(0.0, 0.05, 0.18, 0.22);
+    const float4 cumulusGradient = float4(0.0, 0.2, 0.42, 0.6);
+    const float4 cumulonimbusGradient = float4(0.0, 0.08, 0.8, 0.98);
 
-    float4 baseGradient = stratusFactor * STRATUS_GRADIENT + stratoCumulusFactor * STRATOCUMULUS_GRADIENT + cumulusFactor * CUMULUS_GRADIENT;
-    
-    return Remap(inHeight, baseGradient.x, baseGradient.y, 0.0, 1.0) * Remap(inHeight, baseGradient.z, baseGradient.w, 1.0, 0.0);
+    float a = 1.0f - saturate(inCloudType * 2.0f);
+    float b = 1.0f - abs(inCloudType - 0.5f) * 2.0f;
+    float c = saturate(inCloudType - 0.5f) * 2.0f;
+    float4 gradient = stratusGradient * a + cumulusGradient * b + cumulonimbusGradient * c;
+
+    float v1 = saturate(InverseLerp(inHeight, gradient.x, gradient.y));
+    float v2 = saturate(InverseLerp(inHeight, gradient.w, gradient.z));
+    return v1 * v2;
 }
 
 // Fractional value for sample position in the cloud layer
@@ -107,40 +116,94 @@ float SampleCloudDensity(float3 inSamplePosition)
 {
     float heightFraction = GetHeightFractionForPoint(inSamplePosition);
     
-    if (heightFraction < 0.0 || heightFraction > 1.0)
-        return 0.0;
+    // Skew in wind direction
+    // p += heightFraction * WindDirection * CloudTopOffset;
     
-    float2 uv = GetUVProjection(inSamplePosition);
+    // Animate clouds in wind direction and add a small upward bias to the wind direction
+    // p += (WindDirection + float3(0, 0.1, 0)) * Time * CloudSpeed;
     
-    // Read the low-frequency Perlin-Worley noise and Worley noises
-    // float4 noiseSample = CloudNoise.SampleLevel(sLinearRepeat, float3(uv * 50, heightFraction), 0.0);
+    inSamplePosition *= GlobalScale;
+    
+    // Read the low-frequency Perlin-Worley noise and Worley noises.
+    float4 lowFrequencyNoises = CloudNoise.SampleLevel(sLinearRepeat, inSamplePosition * NoiseScale, 0);
+    
+    // Build an FBM out of the low frequency Worley noises
+    // that can be used to add detail to the low-frequency Perlin-Worley noise.
+    float lowFreqFBM = dot(lowFrequencyNoises.gba, float3(0.625, 0.25, 0.125));
+
+    // Define the base cloud shape by dilating it with the low-frequency FBM made of Worley noise
+    float baseCloud = Remap(lowFrequencyNoises.r, -(1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
+    
+    // Sample cloud map for coverage
+    float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, inSamplePosition.xz * CoverageScale, 0.0);
+    float coverage = cloudMapSample.r;
+    coverage = Slice;
+    
+    // Use remap to apply the cloud coverage attribute
+    baseCloud = Remap(baseCloud, 1.0 - coverage, 1.0, 0.0, 1.0);
+    
+    // Multiply the result by the cloud coverage attribute 
+    // so that smaller clouds are lighter and more aesthetically pleasing
+    baseCloud *= coverage;
+    
+    // Apply the vertical profile to the base cloud shape
+    float verticalProfile = GetVerticalProfile(heightFraction, CloudType);
+    baseCloud *= verticalProfile;
+        
+    // if (cheapSample == false)
+    // {
+    //     // Sample high-frequency noises
+    //     float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, p * DetailNoiseScale, 0).rgb;
+    // 
+    //     // Build high-frequency Worley noise FBM
+    //     float highFreqFBM = dot(highFrequencyNoises, float3(0.625, 0.25, 0.125));
+    // 
+    //     // Transition from wispy shapes to billowy shapes over height
+    //     float highFreqNoiseModifier = lerp(highFreqFBM, 1.0 - highFreqFBM, saturate(heightFraction * 5.0));
+    // 
+    //     // Erode the base cloud shape with the distorted high-frequency Worley noises
+    //     baseCloud = Remap(baseCloud, highFreqNoiseModifier * 0.4, 1.0, 0.0, 1.0);
+    // }
+    
+    return saturate(baseCloud * DensityScale);
+    
+    //=========================
+    
+    // float heightFraction = GetHeightFractionForPoint(inSamplePosition);
+    // 
+    // if (heightFraction < 0.0 || heightFraction > 1.0)
+    //     return 0.0;
+    // 
+    // float2 uv = GetUVProjection(inSamplePosition);
+    // 
+    // // Read the low-frequency Perlin-Worley noise and Worley noises
+    // float4 noiseSample = CloudNoise.SampleLevel(sLinearRepeat, float3(uv * NoiseScale, heightFraction), 0.0);
     // 
     // // Build an FBM out of the low frequency Worley noises that can be used to add detail to the low-frequency Perlin-Worley noise
     // float lowFreqFBM = dot(noiseSample.gba, float3(0.625, 0.25, 0.125));
     // 
     // // Define the base cloud shape by dilating it with the low-frequency FBM made of Worley noise
-    // float baseCloud = Remap(noiseSample.r, lowFreqFBM - 1.0, 1.0, 0.0, 1.0) * DensityScale;
-    
-    float baseCloud = DensityScale;
-    
-    // Apply the vertical profile to the base cloud shape
-    float verticalProfile = GetVerticalProfile(heightFraction, CloudType);
-    baseCloud *= (verticalProfile / max(0.001, heightFraction));
-    
-    // Sample cloud map for coverage
-    float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, uv * CoverageRepeat, 0.0);
-    float coverage = cloudMapSample.r;
-    
-    return coverage * DensityScale * saturate(verticalProfile);
-    
-    // Use remap to apply the cloud coverage attribute
-    float baseCloudWithCoverage = Remap(baseCloud, coverage, 1.0, 0.0, 1.0);
-    
-    // Multiply the result by the cloud coverage attribute 
-    // so that smaller clouds are lighter and more aesthetically pleasing
-    baseCloudWithCoverage = saturate(baseCloudWithCoverage * coverage);
-    
-    return saturate(baseCloudWithCoverage);
+    // float baseCloud = Remap(noiseSample.r, -(1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
+    // 
+    // // Apply the vertical profile to the base cloud shape
+    // float verticalProfile = GetVerticalProfile(heightFraction, CloudType);
+    // verticalProfile = saturate(verticalProfile);
+    // 
+    // baseCloud *= verticalProfile;
+    // 
+    // // Sample cloud map for coverage
+    // float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, uv * CoverageRepeat, 0.0);
+    // float coverage = cloudMapSample.r;
+    // 
+    // // Use remap to apply the cloud coverage attribute
+    // float baseCloudWithCoverage = Remap(baseCloud, coverage, 1.0, 0.0, 1.0);
+    // 
+    // // Multiply the result by the cloud coverage attribute 
+    // // so that smaller clouds are lighter and more aesthetically pleasing
+    // baseCloudWithCoverage *= coverage;
+    // 
+    // return saturate(baseCloudWithCoverage) * DensityScale;
+    // return saturate(coverage * verticalProfile * DensityScale);
 }
 
 float SampleDensityToSun(Ray inLightRay)

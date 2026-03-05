@@ -5,6 +5,10 @@
 #include "Perlin.hlsl"
 #include "Alligator.hlsl"
 
+//===============================
+// Worley Noise
+//===============================
+
 float WorleyFBMDecima(float3 inPosition, float inBaseFrequency)
 {    
     float worley1 = WorleyNoise(inPosition, inBaseFrequency * 19.0, float3(0, 200, 0)) / 3.0;
@@ -49,34 +53,11 @@ float3 WorleyFrostbite(float3 inPosition)
     return float3(worleyFBM0, worleyFBM1, worleyFBM2);
 }
 
-float PerlinFBM(float3 inPosition, float inFrequency, float3 inOffset, float inOctaves)
-{
-    inPosition += inOffset;
-    
-    float octaveFrenquencyFactor = 2.0; // noise frequency factor between octave, forced to 2
+//===============================
+// Perlin-Worley Noise
+//===============================
 
-	// Compute the sum for each octave
-    float sum = 0.0f;
-    float weightSum = 0.0f;
-    float weight = 0.5f;
-    for (int oct = 0; oct < inOctaves; oct++)
-    {
-        float4 p = float4(inPosition, 0.0) * inFrequency;
-        // Apply [-1, 1] -> [0, 1] here due to the normalization at the end
-        float val = glmPerlin4D(p, inFrequency);
-
-        sum += val * weight;
-        weightSum += weight;
-
-        weight *= weight;
-        inFrequency *= octaveFrenquencyFactor;
-    }
-
-    float noise = (sum / weightSum);
-    return noise;
-}
-
-float PerlinFBM2(float3 inPosition, int inFrequency, int inOctaves)
+float PerlinFBM(float3 inPosition, int inFrequency, int inOctaves, bool inConvertTo01)
 {
     int lacunarity = 2;
     float persistence = 0.5;
@@ -91,15 +72,20 @@ float PerlinFBM2(float3 inPosition, int inFrequency, int inOctaves)
         sum += amplitude * PerlinNoise(inPosition, frequency);
         frequency *= lacunarity;
         amplitudeSum += amplitude;
-        amplitude *= 0.5;
+        amplitude *= persistence;
     }
     
-    return (sum / amplitudeSum) * 0.5 + 0.5;
+    float fbm = sum / amplitudeSum;
+    
+    if (inConvertTo01)
+        return fbm * 0.5 + 0.5;
+    
+    return fbm;
 }
 
-float PerlinWorley(float3 inPosition, int inFrequency, float inOctaves)
+float PerlinWorleyDecima(float3 inPosition, int inFrequency, int inOctaves)
 {
-    float perlin = PerlinFBM(inPosition, inFrequency, 0.0, inOctaves);
+    float perlin = PerlinFBM(inPosition, inFrequency, inOctaves, false);
     perlin = Remap(perlin, -0.6, 0.6, 0, 1);
     
     float baseFrequency = 5.0;
@@ -118,6 +104,49 @@ float PerlinWorley(float3 inPosition, int inFrequency, float inOctaves)
     
     return Remap(perlin, -0.1, 1.1, 0, 1);
 }
+
+float PerlinWorleyFrostbite(float3 inPosition, int inFrequency, int inOctaves)
+{
+    // Perlin FBM noise
+    float perlinNoise = PerlinFBM(inPosition, inFrequency, inOctaves, true);
+
+    const float baseFrequency = 4;
+    const float worleyNoise0 = 1.0 - WorleyNoise(inPosition, baseFrequency * 2.0, 0.0);
+    const float worleyNoise1 = 1.0 - WorleyNoise(inPosition, baseFrequency * 8.0, 0.0);
+    const float worleyNoise2 = 1.0 - WorleyNoise(inPosition, baseFrequency * 14.0, 0.0);
+        
+    float worleyFBM = worleyNoise0 * 0.625f + worleyNoise1 * 0.25f + worleyNoise2 * 0.125f;
+    
+    // Matches better what figure 4.7 (not the following up text description p.101). Maps worley between newMin as 0 and 
+	// return Remap(worleyFBM, 0.0, 1.0, 0.0, perlinNoise);
+    
+    // mapping perlin noise in between worley as minimum and 1.0 as maximum (as described in text of p.101 of GPU Pro 7) 
+    return Remap(perlinNoise, 0.0f, 1.0f, worleyFBM, 1.0f);
+}
+
+//===============================
+// Shape Noise
+//===============================
+
+float4 ShapeNoiseDecima(float3 inPosition)
+{
+    float4 noise;
+    noise.r = PerlinWorleyDecima(inPosition, 5, 5);
+    noise.gba = WorleyDecima(inPosition);
+    return noise;
+}
+
+float4 ShapeNoiseFrostbite(float3 inPosition)
+{
+    float4 noise;
+    noise.r = PerlinWorleyFrostbite(inPosition, 8, 3);
+    noise.gba = WorleyFrostbite(inPosition);
+    return noise;
+}
+
+//===============================
+// Alligator Noise (experimental)
+//===============================
 
 // Alligator noise with octaves
 float AlligatorFBM(float3 inPosition, int inFrequency, float3 inOffset, int inOctaves)

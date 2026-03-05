@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-5606938537507196695
+--- !u!114 &-7801735191280408724
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -9,30 +9,36 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fc54bc596b41ea2489ad1ffbe266e80a, type: 3}
+  m_Script: {fileID: 11500000, guid: f5871cdc3552dc2419c2f7332d7314cb, type: 3}
   m_Name: CloudsRendererFeature
   m_EditorClassIdentifier: Assembly-CSharp::CloudsRendererFeature
   m_Active: 1
-  m_CloudsShader: {fileID: 7200000, guid: c1a3c28a60de34a4ba3ae9a62514b96e, type: 3}
-  m_NoiseShader: {fileID: 7200000, guid: 3b1578aafded6614ab2e785191559d1b, type: 3}
-  m_CloudsSettings:
-    SampleCount: 128
-    Absorption: 0.02
-    Scattering: 0.05
-    DensityScale: 0.1
-    Eccentricity: 0.1
+  m_CloudsShader: {fileID: 7200000, guid: adc887142e632524e8357d7b124a873c, type: 3}
+  m_CloudResourcesShader: {fileID: 7200000, guid: 3b1578aafded6614ab2e785191559d1b, type: 3}
+  m_CloudsPassSettings:
+    PlanetRadius: 60000
+    AtmosphereBottomHeight: 1500
+    AtmosphereTopHeight: 3000
+    NumSteps: 128
+    LargeStepSizeMultiplier: 3
     UseJitter: 1
-    CloudType: 0.463
-    CoverageRepeat: 4.7
-    NoiseScale: 100
-    ActiveChannel: 0
+    Coverage: 0.394
+    CloudType: 0.5
+    WindAngle: 0
+    CloudSpeed: 1
+    CloudTopOffset: 100
+    GlobalDensity: 0.021
+    GlobalScale: 0.000121
+    ShapeNoiseScale: 0.3
+    DetailNoiseScale: 0.3
+    Eccentricity: 0.65
+    Intensity: 0.95
+    Spread: 1
+    ShowTextures: 0
     Slice: 0
-    Mip: 0
-    DebugTextures: 0
-  m_NoiseSettings:
-    Coverage: 1
-    NewMin: -2
-    NewMax: 2.5
+    ActiveChannel: 0
+  m_CloudResourcesSettings:
+    RefreshResources: 0
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -59,8 +65,8 @@ MonoBehaviour:
     probeVolumeBlendStatesCS: {fileID: 7200000, guid: b9a23f869c4fd45f19c5ada54dd82176, type: 3}
   m_RendererFeatures:
   - {fileID: 7833122117494664109}
-  - {fileID: -5606938537507196695}
-  m_RendererFeatureMap: ad6b866f10d7b46ce9706f621b2730b2
+  - {fileID: -7801735191280408724}
+  m_RendererFeatureMap: ad6b866f10d7b46c6c2711cc2dabba93
   m_UseNativeRenderPass: 1
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}

@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 
 namespace Helpers
@@ -79,6 +81,67 @@ namespace Helpers
 		public static void Release(ComputeBuffer inBuffer)
 		{
 			inBuffer?.Release();
+		}
+
+		#endregion
+
+		#region Textures
+
+		//
+		// NOTE: These functions work for my use case in CloudsRendererFeature.CloudResourcesPass
+		//
+
+		// Get 2D texture for use as a noise texture (e.g. width = height, enableRandomWrite = true)
+		public static void CreateNoise2D(ref RTHandle outHandle, int inResolution, GraphicsFormat inFormat, string inName)
+		{
+			if (outHandle == null ||
+				outHandle.rt.width != inResolution ||
+				outHandle.rt.height != inResolution)
+			{
+				Release(outHandle);
+
+				var desc = new RenderTextureDescriptor(inResolution, inResolution, inFormat, 0)
+				{
+					dimension = TextureDimension.Tex2D,
+					enableRandomWrite = true,
+					msaaSamples = 1,
+					sRGB = false,
+					useMipMap = false,
+				};
+
+				outHandle = RTHandles.Alloc(desc, name: inName);
+			}
+		}
+
+		// Get 3D texture for use as a noise texture
+		// (e.g. width = height = volumeDepth, enableRandomWrite = true, useMipMap)
+		public static void CreateNoise3D(ref RTHandle outHandle, int inResolution, GraphicsFormat inFormat, string inName)
+		{
+			if (outHandle == null ||
+				outHandle.rt.width != inResolution ||
+				outHandle.rt.height != inResolution ||
+				outHandle.rt.volumeDepth != inResolution)
+			{
+				Release(outHandle);
+
+				var desc = new RenderTextureDescriptor(inResolution, inResolution, inFormat, 0)
+				{
+					volumeDepth = inResolution,
+					dimension = TextureDimension.Tex3D,
+					enableRandomWrite = true,
+					msaaSamples = 1,
+					sRGB = false,
+					useMipMap = true,
+					autoGenerateMips = false,
+				};
+
+				outHandle = RTHandles.Alloc(desc, name: inName);
+			}
+		}
+
+		public static void Release(RTHandle inTexture)
+		{
+			inTexture?.Release();
 		}
 
 		#endregion

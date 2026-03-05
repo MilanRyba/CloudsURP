@@ -1,0 +1,60 @@
+#pragma kernel CloudNoiseShapeCS
+#pragma kernel CloudNoiseDetailCS
+#pragma kernel CloudMapCS
+
+#include "Common.hlsl"
+#include "Noise.hlsl"
+
+float ResolutionInv;
+
+float Coverage;
+float NewMin;
+float NewMax;
+
+RWTexture3D<float4> OutputNoise;
+RWTexture2D<float4> OutputMap;
+
+[numthreads(8, 8, 8)]
+void CloudNoiseShapeCS(uint3 id : SV_DispatchThreadID)
+{
+    float3 uvw = TexelToUV(id, ResolutionInv);
+    OutputNoise[id] = ShapeNoiseFrostbite(uvw);
+}
+
+[numthreads(8, 8, 8)]
+void CloudNoiseDetailCS(uint3 id : SV_DispatchThreadID)
+{
+    float3 uvw = TexelToUV(id, ResolutionInv);
+    
+    const float baseFrequency = 3.0;
+    
+    float worleyNoise0 = 1.0 - WorleyNoise(uvw, baseFrequency * 1.0, 0.0);
+    float worleyNoise1 = 1.0 - WorleyNoise(uvw, baseFrequency * 2.0, 0.0);
+    float worleyNoise2 = 1.0 - WorleyNoise(uvw, baseFrequency * 4.0, 0.0);
+    float worleyNoise3 = 1.0 - WorleyNoise(uvw, baseFrequency * 8.0, 0.0);
+    float worleyFBM0 = worleyNoise0 * 0.625f + worleyNoise1 * 0.25f + worleyNoise2 * 0.125f;
+    float worleyFBM1 = worleyNoise1 * 0.625f + worleyNoise2 * 0.25f + worleyNoise3 * 0.125f;
+    float worleyFBM2 = worleyNoise2 * 0.75f + worleyNoise3 * 0.25f;
+
+    OutputNoise[id] = float4(worleyFBM0, worleyFBM1, worleyFBM2, 1.0);
+}
+
+[numthreads(8, 8, 1)]
+void CloudMapCS(uint3 id : SV_DispatchThreadID)
+{
+    float3 uvw = TexelToUV(id, ResolutionInv);
+    float coverage = Coverage;
+    
+    // float perlinWorley = PerlinWorleyDecima(uvw, 4, 5);
+    // perlinWorley = Remap(perlinWorley, 0.0, 1.0, NewMin, NewMax);
+    // perlinWorley = saturate(perlinWorley);
+    // coverage *= perlinWorley;
+    
+    float perlin = PerlinFBM(uvw, 4, 5, true);
+    perlin = Remap(perlin, 0.0, 1.0, NewMin, NewMax);
+    perlin = saturate(perlin);
+    coverage *= perlin;
+    
+    coverage = saturate(coverage);
+    OutputMap[id.xy] = float4(0.0, 0.25, 0.75, 1.0);
+}
