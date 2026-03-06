@@ -196,28 +196,6 @@ bool RaySphereIntersection(float3 inCenter, float inRadius, Ray ray, out RayCast
     return true;
 }
 
-// float2 RaySphereIntersection(float3 inCenter, float inRadius, Ray ray)
-// {
-//     float3 of = ray.mOrigin - inCenter;
-//     const float a = 1.0;
-//     float b = 2.0 * dot(of, ray.mDirection);
-//     float c = dot(of, of) - inRadius * inRadius;
-//     float discriminant = b * b - 4.0 * a * c;
-// 
-//     if (discriminant > 0)
-//     {
-//         discriminant = sqrt(discriminant);
-//         float dstToSphereNear = max(0.0, (-b - discriminant) / (2.0 * a));
-//         float dstToSphereFar = (-b + discriminant) / (2.0 * a);
-// 
-//         if (dstToSphereFar >= 0.0)
-//         {
-//             return float2(dstToSphereNear, dstToSphereFar - dstToSphereNear);
-//         }
-//     }
-//     return float2(0.0, 0.0);
-// }
-
 //
 // Phase functions
 //
@@ -230,7 +208,7 @@ float IsotropicPhase()
 float HenyeyGreenstein(float inCosAngle, float inEccentricity)
 {
     float eccentricity2 = inEccentricity * inEccentricity;
-    return ((1.0 - eccentricity2) / pow((1.0 + eccentricity2 - 2.0 * inEccentricity * inCosAngle), 3.0 / 2.0)) / 4.0 * PI;
+    return ((1.0 - eccentricity2) / pow((1.0 + eccentricity2 - 2.0 * inEccentricity * inCosAngle), 1.5)) / 4.0 * PI;
 }
 
 // 2-lobe phase function from 'Physically Based Sky, Atmosphere and Cloud Rendering in Frostbite'

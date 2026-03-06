@@ -87,10 +87,10 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Range(1000.0f, 1000000.0f), Tooltip("Planet's radius in meters")]
 		public float PlanetRadius = 60000.0f;
 
-		[Range(100.0f, 4000.0f)]
+		[Range(100.0f, 10000.0f)]
 		public float AtmosphereBottomHeight = 1500.0f;
 
-		[Range(100.0f, 4000.0f)]
+		[Range(100.0f, 10000.0f)]
 		public float AtmosphereTopHeight = 3000.0f;
 
 		[Range(8, 256), Tooltip("The maximum number of steps the raymarcher will take")]

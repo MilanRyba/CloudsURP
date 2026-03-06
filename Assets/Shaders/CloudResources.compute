@@ -18,7 +18,7 @@ RWTexture2D<float4> OutputMap;
 void CloudNoiseShapeCS(uint3 id : SV_DispatchThreadID)
 {
     float3 uvw = TexelToUV(id, ResolutionInv);
-    OutputNoise[id] = ShapeNoiseFrostbite(uvw);
+    OutputNoise[id] = ShapeNoiseDecima(uvw);
 }
 
 [numthreads(8, 8, 8)]

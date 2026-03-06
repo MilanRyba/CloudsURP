@@ -98,10 +98,10 @@ float SampleCloudDensity(float3 p, bool cheapSample)
     // Animate clouds in wind direction and add a small upward bias to the wind direction
     // p += (WindDirection + float3(0, 0.1, 0)) * Time * CloudSpeed;
     
-    p *= GlobalScale;
+    p *= GlobalScale * 5;
     
     // Read the low-frequency Perlin-Worley noise and Worley noises.
-    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, p * ShapeNoiseScale, 0);
+    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, p * ShapeNoiseScale * 0.01, 0);
     
     // Build an FBM out of the low frequency Worley noises
     // that can be used to add detail to the low-frequency Perlin-Worley noise.
@@ -111,9 +111,8 @@ float SampleCloudDensity(float3 p, bool cheapSample)
     float baseCloud = Remap(lowFrequencyNoises.r, -(1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
     
     // Apply the density height gradient to the base cloud shape
-    // float heightGradient = HeightGradient.SampleLevel(sLinearClamp, float2(CloudType, heightFraction), 0).x;
-    float heightGradient = GetVerticalProfile(heightFraction, CloudType);
-    baseCloud *= heightGradient;
+    float verticalProfile = GetVerticalProfile(heightFraction, CloudType);
+    baseCloud *= verticalProfile;
     
     // Use remap to apply the cloud coverage attribute
     baseCloud = Remap(baseCloud, 1.0 - Coverage, 1.0f, 0.0f, 1.0f);
@@ -367,6 +366,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     
     float3 startPos = ray.mOrigin + ray.mDirection * dstToStart;
     float3 endPos = ray.mOrigin + ray.mDirection * dstToEnd;
+    
+    SunColor *= 1.2;
     
     float4 scatteringTransmittance = RenderClouds(startPos, endPos, id.xy);
     float3 color = sceneColor.rgb * scatteringTransmittance.w + scatteringTransmittance.xyz;
