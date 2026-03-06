@@ -16,29 +16,29 @@ MonoBehaviour:
   m_CloudsShader: {fileID: 7200000, guid: adc887142e632524e8357d7b124a873c, type: 3}
   m_CloudResourcesShader: {fileID: 7200000, guid: 3b1578aafded6614ab2e785191559d1b, type: 3}
   m_CloudsPassSettings:
-    PlanetRadius: 60000
-    AtmosphereBottomHeight: 1500
-    AtmosphereTopHeight: 3000
+    PlanetRadius: 600000
+    AtmosphereBottomHeight: 1549
+    AtmosphereTopHeight: 2975
     NumSteps: 128
     LargeStepSizeMultiplier: 3
     UseJitter: 1
-    Coverage: 0.394
-    CloudType: 0.5
+    Coverage: 0.663
+    CloudType: 0.629
     WindAngle: 0
     CloudSpeed: 1
     CloudTopOffset: 100
-    GlobalDensity: 0.021
-    GlobalScale: 0.000121
-    ShapeNoiseScale: 0.3
-    DetailNoiseScale: 0.3
+    GlobalDensity: 0.023
+    GlobalScale: 0.000142
+    ShapeNoiseScale: 0.41
+    DetailNoiseScale: 3.32
     Eccentricity: 0.65
     Intensity: 0.95
     Spread: 1
-    ShowTextures: 0
+    ShowTextures: 1
     Slice: 0
-    ActiveChannel: 0
+    ActiveChannel: 1
   m_CloudResourcesSettings:
-    RefreshResources: 0
+    RefreshResources: 1
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -230,7 +230,7 @@ float IsotropicPhase()
 float HenyeyGreenstein(float inCosAngle, float inEccentricity)
 {
     float eccentricity2 = inEccentricity * inEccentricity;
-    return ((1.0 - eccentricity2) / pow((1.0 + eccentricity2 - 2.0 * inEccentricity * inCosAngle), 3.0 / 2.0)) / 4.0 * PI;
+    return ((1.0 - eccentricity2) / pow((1.0 + eccentricity2 - 2.0 * inEccentricity * inCosAngle), 1.5)) / 4.0 * PI;
 }
 
 // 2-lobe phase function from 'Physically Based Sky, Atmosphere and Cloud Rendering in Frostbite'

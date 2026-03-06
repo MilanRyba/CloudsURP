@@ -32,6 +32,7 @@ float3 WorleyDecima(float3 inPosition)
     return float3(worleyFBM0, worleyFBM1, worleyFBM2);
 }
 
+// https://github.com/sebh/TileableVolumeNoise
 float3 WorleyFrostbite(float3 inPosition)
 {
     const float baseFrequency = 4.0;
@@ -102,12 +103,13 @@ float PerlinWorleyDecima(float3 inPosition, int inFrequency, int inOctaves)
     float worley4 = 0.2 * WorleyNoise(inPosition, baseFrequency * 4, 0.0);
     perlin = Remap(perlin, worley4, 1, 0, 1);
     
-    return Remap(perlin, -0.1, 1.1, 0, 1);
+    return Remap(perlin, -0.25, 1.45, 0, 1);
+    // return Remap(perlin, -0.1, 0.9, 0, 1);
 }
 
+// https://github.com/sebh/TileableVolumeNoise
 float PerlinWorleyFrostbite(float3 inPosition, int inFrequency, int inOctaves)
 {
-    // Perlin FBM noise
     float perlinNoise = PerlinFBM(inPosition, inFrequency, inOctaves, true);
 
     const float baseFrequency = 4;
@@ -120,8 +122,8 @@ float PerlinWorleyFrostbite(float3 inPosition, int inFrequency, int inOctaves)
     // Matches better what figure 4.7 (not the following up text description p.101). Maps worley between newMin as 0 and 
 	// return Remap(worleyFBM, 0.0, 1.0, 0.0, perlinNoise);
     
-    // mapping perlin noise in between worley as minimum and 1.0 as maximum (as described in text of p.101 of GPU Pro 7) 
-    return Remap(perlinNoise, 0.0f, 1.0f, worleyFBM, 1.0f);
+    // Mapping perlin noise in between worley as minimum and 1.0 as maximum (as described in text of p.101 of GPU Pro 7) 
+    return Remap(perlinNoise, 0.0, 1.0, worleyFBM, 1.0);
 }
 
 //===============================
