@@ -18,19 +18,19 @@ MonoBehaviour:
   m_CloudsPassSettings:
     PlanetRadius: 600000
     AtmosphereBottomHeight: 3000
-    AtmosphereTopHeight: 7000
+    AtmosphereTopHeight: 7500
     NumSteps: 128
     LargeStepSizeMultiplier: 3
     UseJitter: 1
     Coverage: 0.571
-    CloudType: 0.5
+    CloudType: 0.75
     WindAngle: 0
     CloudSpeed: 1
     CloudTopOffset: 100
     GlobalDensity: 0.021
     GlobalScale: 0.000199
     ShapeNoiseScale: 2.24
-    DetailNoiseScale: 0.15
+    DetailNoiseScale: 0.16
     Eccentricity: 0.65
     Intensity: 0.95
     Spread: 1

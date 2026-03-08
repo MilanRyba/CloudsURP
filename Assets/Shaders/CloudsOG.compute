@@ -56,6 +56,27 @@ float4 ChannelMask;
 // uint EarlyTerminatedPixels;
 // uint EarlyExit = false;
 
+struct CloudRenderingGlobalInfo
+{
+    float3 mCameraPosition;
+    float3 mViewDirection;
+    float3 mSunDirection; // Normalized vector going to the sun
+    int mSampleCount;
+    float mStaticHash;
+};
+
+struct CloudRenderingRaymarchInfo
+{
+    float mDistance; // Current distance from camera along the main ray
+    float mStepSize;
+};
+
+struct CloudRenderingPixelData
+{
+    float3 mScattering;
+    float mTransmittance;
+};
+
 #define PLANET_CENTER float3(0, -PlanetRadius, 0)
 #define CLOUDS_BOTTOM_LAYER (PlanetRadius + AtmosphereBottomHeight)
 #define CLOUDS_TOP_LAYER (PlanetRadius + AtmosphereTopHeight)
@@ -187,30 +208,23 @@ float LightMarch(float3 rayOrigin, float3 rayDirection)
     return 2.0 * beersLaw * powderSugarEffect;
 }
 
-float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
+void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, inout CloudRenderingPixelData ioPixelData)
 {
-    float3 direction = endPos - startPos;
-    float pathLength = length(direction);
-    direction = normalize(direction);
+    // Init raymarch info struct
+    CloudRenderingRaymarchInfo raymarchInfo;
     
-    // 0 when looking at the horizon, 1 when looking directly up
-    float horizonFactor = abs(dot(direction, float3(0, 1, 0)));
-    float numSteps = lerp(NumSteps, NumSteps * 0.5, horizonFactor);
-    float baseStepSize = pathLength / numSteps;
+    // Determine step size - we take fewer number of steps when looking directly up
+    float horizonFactor = abs(dot(inGlobalInfo.mViewDirection, float3(0, 1, 0)));
+    float numSteps = lerp(inGlobalInfo.mSampleCount, inGlobalInfo.mSampleCount * 0.5, horizonFactor);
+    float pathLength = inRaySegment[1] - inRaySegment[0];
+    raymarchInfo.mStepSize = pathLength / numSteps;
     
-    float3 p = startPos;
-    if (UseJitter)
-    {
-        float offset = InterleavedGradientNoise(float2(uv) + Time);
-        p += direction * offset * baseStepSize;
-    }
+    // Set the start distance to the beginning of the ray segment and offset it by a random jitter
+    raymarchInfo.mDistance = inRaySegment[0] + inGlobalInfo.mStaticHash * raymarchInfo.mStepSize;
     
-    SunDirection = normalize(-SunDirection);
-    float LoV = dot(SunDirection, direction);
+    // Calculate phase function
+    float LoV = dot(inGlobalInfo.mSunDirection, inGlobalInfo.mViewDirection);
     float phase = Phase(LoV, Eccentricity, Intensity, Spread);
-    
-    float3 totalScattering = 0.0f;
-    float transmittance = 1.0f;
     
     float cloudTest = 0.0;
     int zeroDensitySampleCount = 0;
@@ -218,12 +232,14 @@ float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
     float remainingDst = pathLength;
     while (remainingDst > 0.0)
     {
+        // Calculate the sample position by adding the distance times the view vector to the camera position
+        float3 samplePos = inGlobalInfo.mCameraPosition + inGlobalInfo.mViewDirection * raymarchInfo.mDistance;
+        
         // cloudTest starts as zero so we always evaluate the second case from the beginning
         if (cloudTest > 0.0)
         {
-            // Sample density the expensive way by setting the 
-            // last parameter to false, indicating a full sample
-            float sampledDensity = SampleCloudDensity(p, false);
+            // Sample density the expensive way by setting the last parameter to false, indicating a full sample
+            float sampledDensity = SampleCloudDensity(samplePos, false);
                 
             // If we just sample a zero, increment the counter
             if (sampledDensity == 0.0)
@@ -235,11 +251,12 @@ float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
                 if (sampledDensity != 0.0)
                 {
                     // LightMarch just walks in the given direction from the start point and takes X number of lighting samples                    
-                    float3 densityAlongLightRay = LightMarch(p, SunDirection) * SunColor;
-                    totalScattering += sampledDensity * transmittance * baseStepSize * (densityAlongLightRay * phase + float3(0.2, 0.2, 0.25));
-                    transmittance *= exp(-sampledDensity * baseStepSize);
+                    float3 densityAlongLightRay = LightMarch(samplePos, SunDirection) * SunColor;
+                    ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
+                                                (densityAlongLightRay * phase + float3(0.2, 0.2, 0.25));
+                    ioPixelData.mTransmittance *= exp(-sampledDensity * raymarchInfo.mStepSize);
                     
-                    if (transmittance < 0.01)
+                    if (ioPixelData.mTransmittance < 0.01)
                     {
                         // if (EarlyTerminatedPixels)
                         //     EarlyExit = true;
@@ -247,9 +264,9 @@ float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
                         break;
                     }
                 }
-                    
-                p += direction * baseStepSize;
-                remainingDst -= baseStepSize;
+                
+                raymarchInfo.mDistance += raymarchInfo.mStepSize;
+                remainingDst -= raymarchInfo.mStepSize;
             }
             // If not, then set the cloud_test to zero so that we go back to the cheap sample case
             else
@@ -263,38 +280,14 @@ float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
         else
         {
             // Sample density the cheap way, only using the low-frequency noise
-            cloudTest = SampleCloudDensity(p, true);
+            cloudTest = SampleCloudDensity(samplePos, true);
             if (cloudTest == 0.0)
             {
-                p += direction * baseStepSize * LargeStepSizeMultiplier;
-                remainingDst -= baseStepSize * LargeStepSizeMultiplier;
+                raymarchInfo.mDistance += raymarchInfo.mStepSize * LargeStepSizeMultiplier;
+                remainingDst -= raymarchInfo.mStepSize * LargeStepSizeMultiplier;
             }
         }
     }
-    
-    return float4(totalScattering, transmittance);
-}
-
-float2 RaySphereTest(float3 center, float radius, float3 origin, float3 direction)
-{
-    float3 of = origin - center;
-    const float a = 1.0;
-    float b = 2.0 * dot(of, direction);
-    float c = dot(of, of) - radius * radius;
-    float discriminant = b * b - 4.0 * a * c;
-
-    if (discriminant > 0)
-    {
-        discriminant = sqrt(discriminant);
-        float dstToSphereNear = max(0.0, (-b - discriminant) / (2.0 * a));
-        float dstToSphereFar = (-b + discriminant) / (2.0 * a);
-
-        if (dstToSphereFar >= 0.0)
-        {
-            return float2(dstToSphereNear, dstToSphereFar - dstToSphereNear);
-        }
-    }
-    return float2(0.0, 0.0);
 }
 
 [numthreads(16, 16, 1)]
@@ -352,26 +345,40 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     }
     
     // Test for intersections with planet and clouds layers
-    float2 cloudsBottomLayerHit = RaySphereTest(PLANET_CENTER, CLOUDS_BOTTOM_LAYER, ray.mOrigin, ray.mDirection);
-    float2 cloudsTopLayerHit = RaySphereTest(PLANET_CENTER, CLOUDS_TOP_LAYER, ray.mOrigin, ray.mDirection);
+    float2 raySegment;
+    RaySphereIntersection(PLANET_CENTER, CLOUDS_BOTTOM_LAYER, ray, hit);
+    raySegment[0] = hit.mT1;
     
-    float dstToStart = cloudsBottomLayerHit.y;
-    float dstToEnd = cloudsTopLayerHit.y;
+    RaySphereIntersection(PLANET_CENTER, CLOUDS_TOP_LAYER, ray, hit);
+    raySegment[1] = hit.mT1;
     
-    if (dstToEnd <= dstToStart || dstToEnd < 0.0)
+    if (raySegment[1] <= raySegment[0] || raySegment[1] < 0.0)
     {
         Output[id.xy] = float4(1, 0, 1, 1);
         return;
     }
     
-    float3 startPos = ray.mOrigin + ray.mDirection * dstToStart;
-    float3 endPos = ray.mOrigin + ray.mDirection * dstToEnd;
-    
+    SunDirection = normalize(-SunDirection);
     SunColor *= 1.2;
     
-    float4 scatteringTransmittance = RenderClouds(startPos, endPos, id.xy);
-    float3 color = sceneColor.rgb * scatteringTransmittance.w + scatteringTransmittance.xyz;
-    Output[id.xy] = float4(color, 1.0);
+    CloudRenderingGlobalInfo globalInfo;
+    globalInfo.mCameraPosition = ray.mOrigin;
+    globalInfo.mViewDirection = ray.mDirection;
+    globalInfo.mSunDirection = SunDirection;
+    globalInfo.mSampleCount = NumSteps;
+    globalInfo.mStaticHash = 0.0;
+    
+    if (UseJitter)
+        globalInfo.mStaticHash = InterleavedGradientNoise(float2(id.xy) + Time);
+    
+    CloudRenderingPixelData pixelData;
+    pixelData.mTransmittance = 1.0;
+    pixelData.mScattering = 0.0;
+    
+    RaymarchClouds(globalInfo, raySegment, pixelData);
+    
+    float3 finalColor = sceneColor.rgb * pixelData.mTransmittance + pixelData.mScattering;
+    Output[id.xy] = float4(finalColor, 1.0);
     
     // if (EarlyExit)
     //     Output[id.xy] = float4(1, 0.1, 1, 1.0);
