@@ -146,6 +146,9 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Range(0.0f, 1.0f)]
 		public float Spread = 1.0f;
 
+		[Range(0.0f, 2.0f)]
+		public float Brightness = 1.0f;
+
 		[Header("Debug")]
 
 		public bool ShowTextures = false;
@@ -312,6 +315,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Eccentricity", m_Settings.Eccentricity);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Intensity", m_Settings.Intensity);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Spread", m_Settings.Spread);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "Brightness", m_Settings.Brightness);
 
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "Output", inD.Output);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "SceneTexture", inD.SceneTexture);

@@ -37,6 +37,8 @@ float Eccentricity;
 float Intensity;
 float Spread;
 
+float Brightness;
+
 Texture3D ShapeTexture;
 Texture3D DetailTexture;
 Texture2D CloudMap;
@@ -208,6 +210,56 @@ float LightMarch(float3 rayOrigin, float3 rayDirection)
     return 2.0 * beersLaw * powderSugarEffect;
 }
 
+static const float3 NOISE_KERNEL[6] = 
+{
+	float3( 0.38051305,  0.92453449, -0.02111345),
+	float3(-0.50625799, -0.03590792, -0.86163418),
+	float3(-0.32509218, -0.94557439,  0.01428793),
+	float3( 0.09026238, -0.27376545,  0.95755165),
+	float3( 0.28128598,  0.42443639, -0.86065785),
+	float3(-0.16852403,  0.14748697,  0.97460106)
+};
+
+// A function to gather density in a cone for use with lighting clouds
+float SampleDensityToSun(float3 inSamplePosition, float3 inDirection, CloudRenderingRaymarchInfo inRaymarchInfo)
+{
+    float densityToSun = 0.0;
+    float3 samplePos = inSamplePosition;
+    
+    // Lighting ray march loop
+    for (int i = 0; i < 6; i++)
+    {
+        samplePos += inDirection * inRaymarchInfo.mStepSize;
+        samplePos += inRaymarchInfo.mStepSize * NOISE_KERNEL[i] * float(i + 1);
+        
+        float mipOffset = int(i * 0.5);
+        densityToSun += SampleCloudDensity(samplePos, false);
+    }
+    
+    return densityToSun * inRaymarchInfo.mStepSize;
+}
+
+// Calculate the light energy as a combination of three probabilities
+float GetLightEnergy(float inHeightFraction, float inDensityLight, float inDensity, 
+                     float inPhaseProbability, float inCosAngle, float inStepSize, float inBrightness)
+{
+    // Attenuation
+    float primaryAttenuation = exp(-inDensityLight);
+    float secondaryAttenuation = exp(-inDensityLight * 0.25) * 0.7;
+    
+    // Reduce the secondary component when we look toward the sun
+    float attenuationProbability = max(Remap(inCosAngle, 0.7, 1.0, secondaryAttenuation, secondaryAttenuation * 0.25), primaryAttenuation);
+    
+    // In-scattering
+    float depthProbability = lerp(0.05 + pow(inDensity, Remap(inHeightFraction, 0.3, 0.85, 0.5, 2.0)), 1.0, saturate(inDensityLight / inStepSize));
+    float verticalProbability = pow(Remap(inHeightFraction, 0.07, 0.14, 0.1, 1.0), 0.8);
+    float inScatterProbability = depthProbability * verticalProbability;
+    
+    float lightEnergy = attenuationProbability * inScatterProbability * inPhaseProbability * inBrightness;
+    
+    return lightEnergy;
+}
+
 void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, inout CloudRenderingPixelData ioPixelData)
 {
     // Init raymarch info struct
@@ -250,10 +302,19 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
             {
                 if (sampledDensity != 0.0)
                 {
-                    // LightMarch just walks in the given direction from the start point and takes X number of lighting samples                    
-                    float3 densityAlongLightRay = LightMarch(samplePos, SunDirection) * SunColor;
+                    float densityToSun = SampleDensityToSun(samplePos, SunDirection, raymarchInfo);
+                    
+                    float heightFraction = GetHeightFractionForPoint(samplePos);
+                    float lightEnergy = GetLightEnergy(heightFraction, densityToSun, sampledDensity, 
+                                                       phase, LoV, raymarchInfo.mStepSize, Brightness);
+                    
                     ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
-                                                (densityAlongLightRay * phase + float3(0.2, 0.2, 0.25));
+                                                (lightEnergy * SunColor * phase + float3(0.2, 0.2, 0.25));
+                    
+                    // LightMarch just walks in the given direction from the start point and takes X number of lighting samples                    
+                    // float3 densityAlongLightRay = LightMarch(samplePos, SunDirection) * SunColor;
+                    // ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
+                    //                             (densityAlongLightRay * phase + float3(0.2, 0.2, 0.25));
                     ioPixelData.mTransmittance *= exp(-sampledDensity * raymarchInfo.mStepSize);
                     
                     if (ioPixelData.mTransmittance < 0.01)

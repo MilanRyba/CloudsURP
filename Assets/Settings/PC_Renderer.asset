@@ -31,7 +31,7 @@ MonoBehaviour:
     GlobalScale: 0.000199
     ShapeNoiseScale: 2.24
     DetailNoiseScale: 0.16
-    Eccentricity: 0.65
+    Eccentricity: 0.5
     Intensity: 0.95
     Spread: 1
     ShowTextures: 0
