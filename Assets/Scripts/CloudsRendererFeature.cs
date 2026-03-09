@@ -171,7 +171,14 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Range(0.0f, 2.0f)]
 		public float Brightness = 1.0f;
 
+
 		[Header("Debug")]
+
+		[Tooltip("Enabling this setting will show pixels that stopped the ray march early due to low transmittance")]
+		public bool ShowEarlyExit = false;
+
+		[Tooltip("Enabling this setting will show pixels that only used long steps during ray march")]
+		public bool ShowLongSteps = false;
 
 		public bool ShowTextures = false;
 
@@ -355,6 +362,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "DetailTexture", inD.NoiseDetail);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CloudMap", inD.CloudMap);
 
+					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowEarlyExit", m_Settings.ShowEarlyExit ? 1 : 0);
+					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowLongSteps", m_Settings.ShowLongSteps ? 1 : 0);
 					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowTextures", m_Settings.ShowTextures ? 1 : 0);
 					inCtx.cmd.SetComputeVectorParam(m_Shader, "ChannelMask", m_Settings.ChannelMask);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Slice", m_Settings.Slice);

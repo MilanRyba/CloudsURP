@@ -56,13 +56,15 @@ SamplerState sLinearClamp;
 SamplerState sPointRepeat;
 SamplerState sPointClamp;
 
+uint ShowEarlyExit;
+uint ShowLongSteps;
 uint ShowTextures;
 float Slice;
 float4 ChannelMask;
 float Mip;
 
-// uint EarlyTerminatedPixels;
-// uint EarlyExit = false;
+static bool EarlyExit = false;
+static bool LongSteps = true;
 
 struct CloudRenderingGlobalInfo
 {
@@ -134,7 +136,7 @@ float GetVerticalProfile(float inHeight, float inCloudType)
     return saturate(v);
 }
 
-float SampleCloudDensity(float3 p, bool cheapSample)
+float SampleCloudDensity(float3 p, bool cheapSample, int inMipLevel)
 {
     float heightFraction = GetHeightFractionForPoint(p);
     
@@ -147,7 +149,7 @@ float SampleCloudDensity(float3 p, bool cheapSample)
     p *= GlobalScale * 5;
     
     // Read the low-frequency Perlin-Worley noise and Worley noises.
-    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, p * ShapeNoiseScale * 0.01, 0);
+    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, p * ShapeNoiseScale * 0.01, inMipLevel);
     
     // Build an FBM out of the low frequency Worley noises
     // that can be used to add detail to the low-frequency Perlin-Worley noise.
@@ -170,7 +172,7 @@ float SampleCloudDensity(float3 p, bool cheapSample)
     if (cheapSample == false)
     {
         // Sample high-frequency noises
-        float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, p * DetailNoiseScale, 0).rgb;
+        float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, p * DetailNoiseScale, inMipLevel).rgb;
     
         // Build high-frequency Worley noise FBM
         float highFreqFBM = dot(highFrequencyNoises, float3(0.625, 0.25, 0.125));
@@ -207,8 +209,7 @@ float SampleDensityToSun(float3 inSamplePosition, float3 inDirection, CloudRende
         samplePos += inDirection * inRaymarchInfo.mStepSize;
         samplePos += inRaymarchInfo.mStepSize * NOISE_KERNEL[i] * float(i + 1);
         
-        float mipOffset = int(i * 0.5);
-        densityToSun += SampleCloudDensity(samplePos, false);
+        densityToSun += SampleCloudDensity(samplePos, false, int(i * 0.5));
     }
     
     return densityToSun * inRaymarchInfo.mStepSize;
@@ -265,8 +266,10 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
         // cloudTest starts as zero so we always evaluate the second case from the beginning
         if (cloudTest > 0.0)
         {
+            // LongSteps = false;
+            
             // Sample density the expensive way by setting the last parameter to false, indicating a full sample
-            float sampledDensity = SampleCloudDensity(samplePos, false);
+            float sampledDensity = SampleCloudDensity(samplePos, false, 0);
                 
             // If we just sample a zero, increment the counter
             if (sampledDensity == 0.0)
@@ -290,8 +293,8 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
                     
                     if (ioPixelData.mTransmittance < 0.01)
                     {
-                        // if (EarlyTerminatedPixels)
-                        //     EarlyExit = true;
+                        if (ShowEarlyExit)
+                            EarlyExit = true;
                         
                         break;
                     }
@@ -312,7 +315,7 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
         else
         {
             // Sample density the cheap way, only using the low-frequency noise
-            cloudTest = SampleCloudDensity(samplePos, true);
+            cloudTest = SampleCloudDensity(samplePos, true, 0);
             if (cloudTest == 0.0)
             {
                 raymarchInfo.mDistance += raymarchInfo.mStepSize * LargeStepSizeMultiplier;
@@ -412,6 +415,15 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float3 finalColor = sceneColor.rgb * pixelData.mTransmittance + pixelData.mScattering;
     Output[id.xy] = float4(finalColor, 1.0);
     
-    // if (EarlyExit)
-    //     Output[id.xy] = float4(1, 0.1, 1, 1.0);
+    if (EarlyExit)
+    {
+        float3 debugColor = finalColor * float3(0.42, 0.42, 0.6);
+        Output[id.xy] = float4(debugColor, 1.0);
+    }
+    
+    if (ShowLongSteps && LongSteps)
+    {
+        float3 debugColor = finalColor * float3(0.2, 0.2, 0.2);
+        Output[id.xy] = float4(debugColor, 1.0);
+    }
 }
