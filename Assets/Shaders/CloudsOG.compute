@@ -19,6 +19,7 @@ float3 SunColor;
 int NumSteps;
 float LargeStepSizeMultiplier;
 uint UseJitter;
+uint PhaseFunction;
 
 float GlobalDensity;
 float GlobalScale;
@@ -37,6 +38,10 @@ float Eccentricity;
 float Intensity;
 float Spread;
 
+float ForwardScatter;
+float BackwardScatter;
+float Weight;
+
 float Brightness;
 
 Texture3D ShapeTexture;
@@ -54,6 +59,7 @@ SamplerState sPointClamp;
 uint ShowTextures;
 float Slice;
 float4 ChannelMask;
+float Mip;
 
 // uint EarlyTerminatedPixels;
 // uint EarlyExit = false;
@@ -83,9 +89,23 @@ struct CloudRenderingPixelData
 #define CLOUDS_BOTTOM_LAYER (PlanetRadius + AtmosphereBottomHeight)
 #define CLOUDS_TOP_LAYER (PlanetRadius + AtmosphereTopHeight)
 
-float Phase(float LoV, float eccentricity, float silverIntensity, float silverSpread)
+#define PHASE_ISOTROPIC 0
+#define PHASE_HENYEYGREENSTEIN 1
+#define PHASE_DUALLOBE 2
+#define PHASE_HORIZON 3
+
+float Phase(float inCosAngle)
 {
-    return max(HenyeyGreenstein(LoV, eccentricity), silverIntensity * HenyeyGreenstein(LoV, 0.99 - silverSpread));
+    if (PhaseFunction == PHASE_ISOTROPIC)
+        return IsotropicPhase();
+    if (PhaseFunction == PHASE_HENYEYGREENSTEIN)
+        return HenyeyGreenstein(inCosAngle, Eccentricity);
+    if (PhaseFunction == PHASE_DUALLOBE)
+        return DualLobePhase(inCosAngle, ForwardScatter, BackwardScatter, Weight);
+    if (PhaseFunction == PHASE_HORIZON)
+        return HorizonPhase(inCosAngle, Eccentricity, Intensity, Spread);
+    
+    return 0.0;
 }
 
 // Fractional value for sample position in the cloud layer
@@ -231,7 +251,7 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
     
     // Calculate phase function
     float LoV = dot(inGlobalInfo.mSunDirection, inGlobalInfo.mViewDirection);
-    float phase = Phase(LoV, Eccentricity, Intensity, Spread);
+    float phase = Phase(LoV);
     
     float cloudTest = 0.0;
     int zeroDensitySampleCount = 0;
@@ -266,10 +286,6 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
                     ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
                                                 (lightEnergy * SunColor + float3(0.2, 0.2, 0.25));
                     
-                    // LightMarch just walks in the given direction from the start point and takes X number of lighting samples                    
-                    // float3 densityAlongLightRay = LightMarch(samplePos, SunDirection) * SunColor;
-                    // ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
-                    //                             (densityAlongLightRay * phase + float3(0.2, 0.2, 0.25));
                     ioPixelData.mTransmittance *= exp(-sampledDensity * raymarchInfo.mStepSize);
                     
                     if (ioPixelData.mTransmittance < 0.01)
@@ -318,7 +334,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
             float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
+            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, Mip), ChannelMask);
             return;
         }
         
@@ -326,16 +342,14 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
             float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
+            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, Mip), ChannelMask);
             return;
         }
         
         debugUV = InverseLerp((float2) id.xy, float2(600.0f, 20.0f), float2(876.0f, 276.0f));
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
-            // Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), ChannelMask);
-            float v = pow(debugUV.x * 5, 0.8);
-            Output[id.xy] = v;
+            Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), ChannelMask);
             return;
         }
     }

@@ -81,6 +81,14 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 	public enum TextureChannel { All, R, G, B, A }
 
+	public enum PhaseFunction
+	{
+		Isotropic = 0,
+		HenyeyGreenstein,
+		DualLobe,
+		Horizon
+	}
+
 	[Serializable]
     public class CloudsPassSettings
     {
@@ -101,6 +109,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 		[Tooltip("Offsets the starting sample position during the ray march")]
 		public bool UseJitter = true;
+
+		public PhaseFunction Phase;
 
 
 		[Header("Weather")]
@@ -137,14 +147,26 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 		[Header("Phase")]
 
+		// TODO: What is this tooltip??
 		[Range(-0.99f, 0.99f), Tooltip("Directional scattering bias. Values >1 make the light scatter forward and values <1 backward")]
 		public float Eccentricity = 0.65f;
 
-		[Range(0.0f, 5.0f)]
+		[Range(0.0f, 4.0f)]
 		public float Intensity = 0.95f;
 
-		[Range(0.0f, 1.0f)]
+		[Range(0.0f, 2.0f)]
 		public float Spread = 1.0f;
+
+		[Space(10.0f)]
+
+		[Range(0.0f, 1.0f), Tooltip("Controls the forward scattering when 'Phase' is set to Dual Lobe")]
+		public float ForwardScatter = 0.8f;
+		[Range(-1.0f, 0.0f), Tooltip("Controls the backward scattering when 'Phase' is set to Dual Lobe")]
+		public float BackwardScatter = -0.5f;
+		[Range(0.0f, 1.0f), Tooltip("Blends between forward (0) and backward (1) scattering")]
+		public float Weight = 0.5f;
+
+		[Space(2.0f)]
 
 		[Range(0.0f, 2.0f)]
 		public float Brightness = 1.0f;
@@ -169,6 +191,9 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					(ActiveChannel == TextureChannel.A) ? 1 : 0);
 			}
 		}
+
+		[Range(0.0f, 7.0f)]
+		public float Mip = 0.0f;
 	}
 
 	[Serializable]
@@ -298,6 +323,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeIntParam(m_Shader, "NumSteps", m_Settings.NumSteps);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "LargeStepSizeMultiplier", m_Settings.LargeStepSizeMultiplier);
 					inCtx.cmd.SetComputeIntParam(m_Shader, "UseJitter", m_Settings.UseJitter ? 1 : 0);
+					inCtx.cmd.SetComputeIntParam(m_Shader, "PhaseFunction", (int)m_Settings.Phase);
 
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "GlobalDensity", m_Settings.GlobalDensity);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "GlobalScale", m_Settings.GlobalScale);
@@ -315,6 +341,11 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Eccentricity", m_Settings.Eccentricity);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Intensity", m_Settings.Intensity);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Spread", m_Settings.Spread);
+
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "ForwardScatter", m_Settings.ForwardScatter);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "BackwardScatter", m_Settings.BackwardScatter);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "Weight", m_Settings.Weight);
+
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Brightness", m_Settings.Brightness);
 
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "Output", inD.Output);
@@ -327,6 +358,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowTextures", m_Settings.ShowTextures ? 1 : 0);
 					inCtx.cmd.SetComputeVectorParam(m_Shader, "ChannelMask", m_Settings.ChannelMask);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Slice", m_Settings.Slice);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "Mip", m_Settings.Mip);
 
 					GraphicsHelper.Dispatch(inCtx, m_Shader, m_Kernel, (int)inD.ViewportDimensions.x, (int)inD.ViewportDimensions.y);
 				});

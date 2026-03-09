@@ -7,7 +7,7 @@ namespace Helpers
 {
 	public static class GraphicsHelper
 	{
-		#region #Compute
+		#region Compute
 
 		// Get the size of compute thread groups as stated in the shader.
 		public static Vector3Int GetThreadGroupSizes(ComputeShader inShader, int inKernel = 0)
@@ -54,7 +54,7 @@ namespace Helpers
 
 		#endregion
 
-		#region #Buffers
+		#region Buffers
 
 		public static int GetStride<T>()
 		{

@@ -22,8 +22,9 @@ MonoBehaviour:
     NumSteps: 128
     LargeStepSizeMultiplier: 3
     UseJitter: 1
-    Coverage: 0.569
-    CloudType: 0.21
+    Phase: 3
+    Coverage: 0.6
+    CloudType: 0.591
     WindAngle: 0
     CloudSpeed: 1
     CloudTopOffset: 100
@@ -32,12 +33,16 @@ MonoBehaviour:
     ShapeNoiseScale: 2.24
     DetailNoiseScale: 0.16
     Eccentricity: 0.36
-    Intensity: 1.21
-    Spread: 0.68
+    Intensity: 1.25
+    Spread: 0.42
+    ForwardScatter: 0.524
+    BackwardScatter: -0.749
+    Weight: 0.282
     Brightness: 1.27
     ShowTextures: 0
     Slice: 0
-    ActiveChannel: 3
+    ActiveChannel: 1
+    Mip: 0
   m_CloudResourcesSettings:
     RefreshResources: 0
 --- !u!114 &11400000
