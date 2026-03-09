@@ -198,6 +198,9 @@ static const float3 NOISE_KERNEL[6] =
 };
 
 // A function to gather density in a cone for use with lighting clouds
+// inSamplePosition - Current sample position in the main ray march loop
+// inDirection - Normalized direction to the sun
+// inRaymarchInfo - Raymarch info struct from main ray march loop
 float SampleDensityToSun(float3 inSamplePosition, float3 inDirection, CloudRenderingRaymarchInfo inRaymarchInfo)
 {
     float densityToSun = 0.0;
@@ -236,6 +239,10 @@ float GetLightEnergy(float inHeightFraction, float inDensityLight, float inDensi
     return lightEnergy;
 }
 
+// Main ray march loop
+// inGlobalInfo - Global information for cloud rendering
+// inRaySegment - Contains distances to the bottom [0] and top [1] cloud layer from camera
+// ioPixelData - Transmittance and scattering used as input and output variables
 void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, inout CloudRenderingPixelData ioPixelData)
 {
     // Init raymarch info struct
@@ -244,21 +251,19 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
     // Determine step size - we take fewer number of steps when looking directly up
     float horizonFactor = abs(dot(inGlobalInfo.mViewDirection, float3(0, 1, 0)));
     float numSteps = lerp(inGlobalInfo.mSampleCount, inGlobalInfo.mSampleCount * 0.5, horizonFactor);
-    float pathLength = inRaySegment[1] - inRaySegment[0];
-    raymarchInfo.mStepSize = pathLength / numSteps;
+    raymarchInfo.mStepSize = (inRaySegment[1] - inRaySegment[0]) / numSteps;
     
     // Set the start distance to the beginning of the ray segment and offset it by a random jitter
     raymarchInfo.mDistance = inRaySegment[0] + inGlobalInfo.mStaticHash * raymarchInfo.mStepSize;
     
     // Calculate phase function
-    float LoV = dot(inGlobalInfo.mSunDirection, inGlobalInfo.mViewDirection);
-    float phase = Phase(LoV);
+    float cosAngle = dot(inGlobalInfo.mSunDirection, inGlobalInfo.mViewDirection);
+    float phase = Phase(cosAngle);
     
     float cloudTest = 0.0;
     int zeroDensitySampleCount = 0;
     
-    float remainingDst = pathLength;
-    while (remainingDst > 0.0)
+    for (int i = 0; i < numSteps; i++)
     {
         // Calculate the sample position by adding the distance times the view vector to the camera position
         float3 samplePos = inGlobalInfo.mCameraPosition + inGlobalInfo.mViewDirection * raymarchInfo.mDistance;
@@ -271,7 +276,7 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
             // Sample density the expensive way by setting the last parameter to false, indicating a full sample
             float sampledDensity = SampleCloudDensity(samplePos, false, 0);
                 
-            // If we just sample a zero, increment the counter
+            // If we just sampled a zero and the previous sample was zero, increment the counter
             if (sampledDensity == 0.0)
                 zeroDensitySampleCount++;
                 
@@ -284,7 +289,7 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
                     
                     float heightFraction = GetHeightFractionForPoint(samplePos);
                     float lightEnergy = GetLightEnergy(heightFraction, densityToSun, sampledDensity, 
-                                                       phase, LoV, raymarchInfo.mStepSize, Brightness);
+                                                       phase, cosAngle, raymarchInfo.mStepSize, Brightness);
                     
                     ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
                                                 (lightEnergy * SunColor + float3(0.2, 0.2, 0.25));
@@ -301,26 +306,23 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
                 }
                 
                 raymarchInfo.mDistance += raymarchInfo.mStepSize;
-                remainingDst -= raymarchInfo.mStepSize;
             }
-            // If not, then set the cloud_test to zero so that we go back to the cheap sample case
+            // If not, then set the cloudTest to zero so that we go back to the cheap sample case
             else
             {
                 cloudTest = 0.0;
                 zeroDensitySampleCount = 0;
-                
-                // Could we advance 'p' here??
             }
         }
         else
         {
             // Sample density the cheap way, only using the low-frequency noise
             cloudTest = SampleCloudDensity(samplePos, true, 0);
+            
             if (cloudTest == 0.0)
-            {
                 raymarchInfo.mDistance += raymarchInfo.mStepSize * LargeStepSizeMultiplier;
-                remainingDst -= raymarchInfo.mStepSize * LargeStepSizeMultiplier;
-            }
+            else
+                raymarchInfo.mDistance -= raymarchInfo.mStepSize;
         }
     }
 }
