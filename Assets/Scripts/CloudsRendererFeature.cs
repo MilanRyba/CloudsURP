@@ -92,6 +92,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 	[Serializable]
     public class CloudsPassSettings
     {
+		[Header("General")]
+
 		[Range(1000.0f, 1000000.0f), Tooltip("Planet's radius in meters")]
 		public float PlanetRadius = 60000.0f;
 
@@ -113,7 +115,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		public PhaseFunction Phase;
 
 
-		[Header("Weather")]
+		[Header("Shape")]
 
 		[Range(0.0f, 1.0f)]
 		public float Coverage = 0.9f;
@@ -124,7 +126,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Range(0.0f, 360.0f), Tooltip("Angle of the global wind direction")]
 		public float WindAngle = 0.0f;
 
-		[Range(0.01f, 10.0f), Tooltip("Speed of the clouds")]
+		[Range(0.01f, 100.0f), Tooltip("Speed of the clouds")]
 		public float CloudSpeed = 1.0f;
 
 		[Range(0.0f, 250.0f), Tooltip("Pushes the tops of the clouds along the wind direction by this many units")]
@@ -144,6 +146,9 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 		[Range(0.1f, 5.0f), Tooltip("Scale of the cloud details")]
 		public float DetailNoiseScale = 0.3f;
+
+		[Range(0.0f, 1.0f)]
+		public float DetailNoiseInfluence = 0.4f;
 
 		[Header("Phase")]
 
@@ -336,6 +341,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "GlobalScale", m_Settings.GlobalScale);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "ShapeNoiseScale", m_Settings.ShapeNoiseScale);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseScale", m_Settings.DetailNoiseScale);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseInfluence", m_Settings.DetailNoiseInfluence);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Coverage", m_Settings.Coverage);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudType", m_Settings.CloudType);
 

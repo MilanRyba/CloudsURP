@@ -20,27 +20,30 @@ MonoBehaviour:
     AtmosphereBottomHeight: 3000
     AtmosphereTopHeight: 7500
     NumSteps: 128
-    LargeStepSizeMultiplier: 3
+    LargeStepSizeMultiplier: 2
     UseJitter: 1
     Phase: 3
-    Coverage: 0.6
-    CloudType: 0.591
+    Coverage: 0.696
+    CloudType: 0.414
     WindAngle: 0
-    CloudSpeed: 1
+    CloudSpeed: 0.01
     CloudTopOffset: 100
-    GlobalDensity: 0.021
+    GlobalDensity: 0.022
     GlobalScale: 0.000199
     ShapeNoiseScale: 2.24
-    DetailNoiseScale: 0.16
-    Eccentricity: 0.36
+    DetailNoiseScale: 0.24
+    DetailNoiseInfluence: 0.4
+    Eccentricity: -0.71
     Intensity: 1.25
     Spread: 0.42
-    ForwardScatter: 0.524
-    BackwardScatter: -0.749
+    ForwardScatter: 0.584
+    BackwardScatter: -0.743
     Weight: 0.282
     Brightness: 1.27
+    ShowEarlyExit: 0
+    ShowLongSteps: 0
     ShowTextures: 0
-    Slice: 0
+    Slice: 0.687
     ActiveChannel: 1
     Mip: 0
   m_CloudResourcesSettings:
