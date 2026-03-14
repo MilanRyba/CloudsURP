@@ -24,14 +24,14 @@ MonoBehaviour:
     UseJitter: 1
     Phase: 3
     Coverage: 0.696
-    CloudType: 0.414
-    WindAngle: 0
-    CloudSpeed: 0.01
+    CloudType: 1
+    WindAngle: 204
+    CloudSpeed: 0
     CloudTopOffset: 100
     GlobalDensity: 0.022
     GlobalScale: 0.000199
-    ShapeNoiseScale: 2.24
-    DetailNoiseScale: 0.24
+    ShapeNoiseScale: 1.8
+    DetailNoiseScale: 3.04
     DetailNoiseInfluence: 0.4
     Eccentricity: -0.71
     Intensity: 1.25
@@ -42,9 +42,9 @@ MonoBehaviour:
     Brightness: 1.27
     ShowEarlyExit: 0
     ShowLongSteps: 0
-    ShowTextures: 0
-    Slice: 0.687
-    ActiveChannel: 1
+    ShowTextures: 1
+    Slice: 0.175
+    ActiveChannel: 3
     Mip: 0
   m_CloudResourcesSettings:
     RefreshResources: 0

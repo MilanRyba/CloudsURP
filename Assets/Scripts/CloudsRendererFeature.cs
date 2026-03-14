@@ -126,7 +126,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Range(0.0f, 360.0f), Tooltip("Angle of the global wind direction")]
 		public float WindAngle = 0.0f;
 
-		[Range(0.01f, 100.0f), Tooltip("Speed of the clouds")]
+		[Range(0.0f, 100.0f), Tooltip("Speed of the clouds")]
 		public float CloudSpeed = 1.0f;
 
 		[Range(0.0f, 250.0f), Tooltip("Pushes the tops of the clouds along the wind direction by this many units")]

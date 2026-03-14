@@ -5,6 +5,7 @@
 #define METRIC_EUCLIDEAN 0
 #define METRIC_MANHATTAN 1
 #define METRIC_CHEBYSHEV 2
+#define METRIC_SQUARED 3
 
 float ManhattanLength(float3 inV)
 {
@@ -24,6 +25,8 @@ float WorleyNoiseMetric(float3 inV, int inMetric)
         return ManhattanLength(inV);
     else if (inMetric == METRIC_CHEBYSHEV)
         return ChebyshevLength(inV);
+    else if (inMetric == METRIC_SQUARED)
+        return dot(inV, inV);
 
     return -1.0;
 }

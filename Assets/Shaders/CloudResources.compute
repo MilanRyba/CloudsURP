@@ -23,14 +23,15 @@ void CloudNoiseDetailCS(uint3 id : SV_DispatchThreadID)
     float3 uvw = TexelToUV(id, ResolutionInv);
     
     const float baseFrequency = 3.0;
+    const int metric = METRIC_SQUARED;
     
-    float worleyNoise0 = 1.0 - WorleyNoise(uvw, baseFrequency * 1.0, 0.0);
-    float worleyNoise1 = 1.0 - WorleyNoise(uvw, baseFrequency * 2.0, 0.0);
-    float worleyNoise2 = 1.0 - WorleyNoise(uvw, baseFrequency * 4.0, 0.0);
-    float worleyNoise3 = 1.0 - WorleyNoise(uvw, baseFrequency * 8.0, 0.0);
-    float worleyFBM0 = worleyNoise0 * 0.625f + worleyNoise1 * 0.25f + worleyNoise2 * 0.125f;
-    float worleyFBM1 = worleyNoise1 * 0.625f + worleyNoise2 * 0.25f + worleyNoise3 * 0.125f;
-    float worleyFBM2 = worleyNoise2 * 0.75f + worleyNoise3 * 0.25f;
+    float worleyNoise0 = 1.0 - WorleyNoise(uvw, baseFrequency * 1.0, 0.0, metric);
+    float worleyNoise1 = 1.0 - WorleyNoise(uvw, baseFrequency * 2.0, 0.0, metric);
+    float worleyNoise2 = 1.0 - WorleyNoise(uvw, baseFrequency * 4.0, 0.0, metric);
+    float worleyNoise3 = 1.0 - WorleyNoise(uvw, baseFrequency * 8.0, 0.0, metric);
+    float worleyFBM0 = worleyNoise0 * 0.625 + worleyNoise1 * 0.25 + worleyNoise2 * 0.125;
+    float worleyFBM1 = worleyNoise1 * 0.625 + worleyNoise2 * 0.25 + worleyNoise3 * 0.125;
+    float worleyFBM2 = worleyNoise2 * 0.75 + worleyNoise3 * 0.25;
 
     OutputNoise[id] = float4(worleyFBM0, worleyFBM1, worleyFBM2, 1.0);
 }
@@ -39,31 +40,22 @@ void CloudNoiseDetailCS(uint3 id : SV_DispatchThreadID)
 void CloudMapCS(uint3 id : SV_DispatchThreadID)
 {
     float3 uvw = TexelToUV(id, ResolutionInv);
-    float coverage = 1.0;
     
     // A low frequency noise modulates cloud coverage to simulate those 
     // large regions where air masses overlap and clouds are allowed to form
     float lowFreqBase = PerlinFBM(uvw, 4, 6, false);
     lowFreqBase = Remap(lowFreqBase, -0.12, 1.0, 0.0, 15.0);
     
-    float alligator = AlligatorFBM(uvw, 4, 0, 5);
-    // alligator = Remap(alligator, 0.0, 1.0, -0.2, 7.0);
-    
     float perlin = PerlinFBM(uvw + float3(0.1, 0.5, 0.3), 5, 5, false);
     perlin = Remap(perlin, -0.6, 0.6, 0.0, 0.7);
-    
     float red = lowFreqBase * perlin * 0.8;
-    float green = lowFreqBase * alligator;
     
-    float cloudType = PerlinFBM(uvw + float3(0.4, 0.1, 0.3), 3, 6, false);
-    cloudType = Remap(cloudType, -0.1, 1.0, -0.2, 7.0);
+    float worley = PerlinWorleyDecima(uvw, 4, 5);
+    worley = Remap(worley, 0.0, 1.0, -0.75, 1.25);
+    float green = lowFreqBase * worley;
     
-    float a = 0.1;
+    float cloudType = AlligatorFBM(uvw, 4, 6);
+    cloudType = pow(cloudType, 0.75);
     
-    if (abs(uvw.x - 0.5) < 0.05 ||
-        abs(uvw.x - 0.01) < 0.002 || 
-        abs(uvw.x - 0.99) < 0.002)
-        a = 1.0;
-    
-    OutputMap[id.xy] = saturate(float4(red, green, cloudType, a));
+    OutputMap[id.xy] = saturate(float4(red, green, cloudType, 1.0));
 }

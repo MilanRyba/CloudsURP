@@ -86,7 +86,7 @@ float PerlinFBM(float3 inPosition, int inFrequency, int inOctaves, bool inConver
 float PerlinWorleyDecima(float3 inPosition, int inFrequency, int inOctaves)
 {
     float perlin = PerlinFBM(inPosition, inFrequency, inOctaves, false);
-    perlin = Remap(perlin, -0.6, 0.6, 0, 1);
+    perlin = Remap(perlin, -0.6, 0.5, 0, 1);
     
     float baseFrequency = 5.0;
     
@@ -102,7 +102,7 @@ float PerlinWorleyDecima(float3 inPosition, int inFrequency, int inOctaves)
     float worley4 = 0.2 * WorleyNoise(inPosition, baseFrequency * 4, 0.0);
     perlin = Remap(perlin, worley4, 1, 0, 1);
     
-    return Remap(perlin, -0.1, 1.1, 0, 1);
+    return Remap(perlin, -0.1, 0.9, 0, 1);
 }
 
 float PerlinWorleyFrostbite(float3 inPosition, int inFrequency, int inOctaves)
@@ -131,7 +131,7 @@ float PerlinWorleyFrostbite(float3 inPosition, int inFrequency, int inOctaves)
 float4 ShapeNoiseDecima(float3 inPosition)
 {
     float4 noise;
-    noise.r = PerlinWorleyDecima(inPosition, 5, 5);
+    noise.r = PerlinWorleyDecima(inPosition, 8, 6);
     noise.gba = WorleyDecima(inPosition);
     return noise;
 }
@@ -149,7 +149,7 @@ float4 ShapeNoiseFrostbite(float3 inPosition)
 //===============================
 
 // Alligator noise with octaves
-float AlligatorFBM(float3 inPosition, int inFrequency, float3 inOffset, int inOctaves)
+float AlligatorFBM(float3 inPosition, int inFrequency, int inOctaves)
 {
     // Move these as parameters
     float lacunarity = 2.0;
@@ -187,7 +187,7 @@ float AlligatorFBM(float3 inPosition, int inFrequency, float3 inOffset, int inOc
 
 float AlligatorDecima(float3 inPosition, int inFrequency)
 {
-    float alligator1 = AlligatorFBM(inPosition, inFrequency, float3(200.0, 200.0, 0.0), 5) * 1.2;
+    float alligator1 = AlligatorFBM(inPosition, inFrequency, 5) * 1.2;
     alligator1 = Remap(alligator1, 0.02, 0.6, -0.01, 1.3);
     
     return alligator1;

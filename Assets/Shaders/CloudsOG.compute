@@ -146,6 +146,7 @@ float2 GetUVProjection(float3 inPosition)
 float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipLevel)
 {
     float heightFraction = GetHeightFractionForPoint(inSamplePosition);
+    float3 position = inSamplePosition;
     
     // Skew in wind direction
     inSamplePosition += heightFraction * WindDirection * CloudTopOffset;
@@ -154,15 +155,14 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     inSamplePosition += (WindDirection + float3(0, 0.1, 0)) * Time * CloudSpeed;
     
     float2 uv = GetUVProjection(inSamplePosition);
+    float2 staticUv = GetUVProjection(position);
     
-    // float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, uv * 6.0 - 0.5, 0);
-    float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, uv * 12.0 - 0.5, 0);
+    float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, staticUv * 24.0 - 0.5, 0);
     float coverage = cloudMapSample.r;
     float cloudType = cloudMapSample.b;
     
     // Read the low-frequency Perlin-Worley noise and Worley noises.
-    // float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, inSamplePosition * ShapeNoiseScale * 0.01, inMipLevel);
-    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, float3(uv * 100.0, heightFraction), inMipLevel);
+    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, float3(uv * 100.0 * ShapeNoiseScale, heightFraction), inMipLevel);
     
     // Build an FBM out of the low frequency Worley noises
     // that can be used to add detail to the low-frequency Perlin-Worley noise.
@@ -170,10 +170,9 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
 
     // Define the base cloud shape by dilating it with the low-frequency FBM made of Worley noise
     float baseCloud = Remap(lowFrequencyNoises.r, -(1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
-    float cloud = baseCloud;
     
     // Apply the density height gradient to the base cloud shape
-    float verticalProfile = GetVerticalProfile(heightFraction, CloudType);
+    float verticalProfile = GetVerticalProfile(heightFraction, cloudType);
     baseCloud *= verticalProfile;
     
     // Use remap to apply the cloud coverage attribute
@@ -187,7 +186,7 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     {
         // Sample high-frequency noises
         // float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, inSamplePosition * DetailNoiseScale, inMipLevel).rgb;
-        float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, float3(uv * 500.0 * Slice, heightFraction), inMipLevel).rgb;
+        float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, float3(uv * 200.0 * DetailNoiseScale, heightFraction), inMipLevel).rgb;
     
         // Build high-frequency Worley noise FBM
         float highFreqFBM = dot(highFrequencyNoises, float3(0.625, 0.25, 0.125));
@@ -199,7 +198,7 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
         baseCloud = Remap(baseCloud, highFreqNoiseModifier * DetailNoiseInfluence, 1.0, 0.0, 1.0);
     }
     
-    baseCloud *= saturate(Remap(heightFraction, 0.0, 1.0, 0.0, 3.0));
+    baseCloud *= saturate(Remap(heightFraction, 0.0, 1.0, 0.0, 2.0));
     
     return saturate(baseCloud * GlobalDensity);
 }
