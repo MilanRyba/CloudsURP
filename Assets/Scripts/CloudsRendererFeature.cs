@@ -81,14 +81,6 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 	public enum TextureChannel { All, R, G, B, A }
 
-	public enum PhaseFunction
-	{
-		Isotropic = 0,
-		HenyeyGreenstein,
-		DualLobe,
-		Horizon
-	}
-
 	[Serializable]
     public class CloudsPassSettings
     {
@@ -112,13 +104,12 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Tooltip("Offsets the starting sample position during the ray march")]
 		public bool UseJitter = true;
 
-		public PhaseFunction Phase;
 
 
 		[Header("Shape")]
 
-		[Range(0.0f, 1.0f)]
-		public float Coverage = 0.9f;
+		[Range(1, 10)]
+		public int CoverageRepeat = 4;
 
 		[Range(0.0f, 1.0f), Tooltip("Type of the cloud to render. 0 -> stratus, 0.5 -> stratocumulus, 1 -> cumulus")]
 		public float CloudType = 0.5f;
@@ -157,19 +148,10 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		public float Eccentricity = 0.65f;
 
 		[Range(0.0f, 4.0f)]
-		public float Intensity = 0.95f;
+		public float SilverIntensity = 0.95f;
 
 		[Range(0.0f, 2.0f)]
-		public float Spread = 1.0f;
-
-		[Space(10.0f)]
-
-		[Range(0.0f, 1.0f), Tooltip("Controls the forward scattering when 'Phase' is set to Dual Lobe")]
-		public float ForwardScatter = 0.8f;
-		[Range(-1.0f, 0.0f), Tooltip("Controls the backward scattering when 'Phase' is set to Dual Lobe")]
-		public float BackwardScatter = -0.5f;
-		[Range(0.0f, 1.0f), Tooltip("Blends between forward (0) and backward (1) scattering")]
-		public float Weight = 0.5f;
+		public float SilverSpread = 1.0f;
 
 		[Space(2.0f)]
 
@@ -335,14 +317,13 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeIntParam(m_Shader, "NumSteps", m_Settings.NumSteps);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "LargeStepSizeMultiplier", m_Settings.LargeStepSizeMultiplier);
 					inCtx.cmd.SetComputeIntParam(m_Shader, "UseJitter", m_Settings.UseJitter ? 1 : 0);
-					inCtx.cmd.SetComputeIntParam(m_Shader, "PhaseFunction", (int)m_Settings.Phase);
 
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "GlobalDensity", m_Settings.GlobalDensity);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "GlobalScale", m_Settings.GlobalScale);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "ShapeNoiseScale", m_Settings.ShapeNoiseScale);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseScale", m_Settings.DetailNoiseScale);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseInfluence", m_Settings.DetailNoiseInfluence);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "Coverage", m_Settings.Coverage);
+					inCtx.cmd.SetComputeIntParam(m_Shader, "CoverageRepeat", m_Settings.CoverageRepeat);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudType", m_Settings.CloudType);
 
 					Vector3 windDirection = new Vector3(Mathf.Cos(m_Settings.WindAngle * Mathf.Deg2Rad), 0, -Mathf.Sin(m_Settings.WindAngle * Mathf.Deg2Rad));
@@ -352,12 +333,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Time", Time.time);
 					
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Eccentricity", m_Settings.Eccentricity);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "Intensity", m_Settings.Intensity);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "Spread", m_Settings.Spread);
-
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "ForwardScatter", m_Settings.ForwardScatter);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "BackwardScatter", m_Settings.BackwardScatter);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "Weight", m_Settings.Weight);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "SilverIntensity", m_Settings.SilverIntensity);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "SilverSpread", m_Settings.SilverSpread);
 
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Brightness", m_Settings.Brightness);
 

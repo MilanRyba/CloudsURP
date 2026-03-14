@@ -3,45 +3,54 @@
 #include "Common.hlsl"
 #include "Noise.hlsl"
 
+//
+// Common Render Settings
+//
 float2 ViewportDimensions;
 float2 ViewportDimensionsInv;
 float3 CameraPosition;
 float4x4 ProjInv;
 float4x4 ViewInv;
+float3 SunDirection;
+float3 SunColor;
+float Time;
 
+//
+// Atmosphere Parameters
+//
 float PlanetRadius;
 float AtmosphereBottomHeight;
 float AtmosphereTopHeight;
 
-float3 SunDirection;
-float3 SunColor;
-
+//
+// Raymarching Settings
+//
 int NumSteps;
 float LargeStepSizeMultiplier;
 uint UseJitter;
-uint PhaseFunction;
+
 
 float GlobalDensity;
 float GlobalScale;
 float ShapeNoiseScale;
 float DetailNoiseScale;
 float DetailNoiseInfluence;
-float Coverage;
-float CloudType;
+int CoverageRepeat;
+// float CloudType; This parameter should be moved into cloud map creation. Somehow. Same for coverage.
 
+//
+// Wind Settings
+//
 float3 WindDirection;
 float CloudSpeed;
 float CloudTopOffset;
-float Time;
 
-// Phase function parameters
+//
+// Phase Function Parameters
+//
 float Eccentricity;
-float Intensity;
-float Spread;
-
-float ForwardScatter;
-float BackwardScatter;
-float Weight;
+float SilverIntensity;
+float SilverSpread;
 
 float Brightness;
 
@@ -92,25 +101,6 @@ struct CloudRenderingPixelData
 #define CLOUDS_BOTTOM_LAYER (PlanetRadius + AtmosphereBottomHeight)
 #define CLOUDS_TOP_LAYER (PlanetRadius + AtmosphereTopHeight)
 
-#define PHASE_ISOTROPIC 0
-#define PHASE_HENYEYGREENSTEIN 1
-#define PHASE_DUALLOBE 2
-#define PHASE_HORIZON 3
-
-float Phase(float inCosAngle)
-{
-    if (PhaseFunction == PHASE_ISOTROPIC)
-        return IsotropicPhase();
-    if (PhaseFunction == PHASE_HENYEYGREENSTEIN)
-        return HenyeyGreenstein(inCosAngle, Eccentricity);
-    if (PhaseFunction == PHASE_DUALLOBE)
-        return DualLobePhase(inCosAngle, ForwardScatter, BackwardScatter, Weight);
-    if (PhaseFunction == PHASE_HORIZON)
-        return HorizonPhase(inCosAngle, Eccentricity, Intensity, Spread);
-    
-    return 0.0;
-}
-
 // Fractional value for sample position in the cloud layer
 float GetHeightFractionForPoint(float3 p)
 {
@@ -118,21 +108,18 @@ float GetHeightFractionForPoint(float3 p)
     return saturate((height - CLOUDS_BOTTOM_LAYER) / (CLOUDS_TOP_LAYER - CLOUDS_BOTTOM_LAYER));
 }
 
-// Cloud types height density gradients
-#define STRATUS_GRADIENT float4(0.0, 0.1, 0.2, 0.3)
-#define STRATOCUMULUS_GRADIENT float4(0.02, 0.2, 0.48, 0.625)
-#define CUMULUS_GRADIENT float4(0.00, 0.1625, 0.88, 0.98)
-
 float GetVerticalProfile(float inHeight, float inCloudType)
 {
+    const float4 stratusGradient = float4(0.0, 0.1, 0.2, 0.3);
+    const float4 stratocumulusGradient = float4(0.02, 0.2, 0.48, 0.625);
+    const float4 cumulusGradient = float4(0.0, 0.1625, 0.88, 0.98);
+    
     float stratusFactor = 1.0 - clamp(inCloudType * 2.0, 0.0, 1.0);
     float stratoCumulusFactor = 1.0 - abs(inCloudType - 0.5) * 2.0;
     float cumulusFactor = clamp(inCloudType - 0.5, 0.0, 1.0) * 2.0;
     
-    float4 baseGradient = stratusFactor * STRATUS_GRADIENT + stratoCumulusFactor * STRATOCUMULUS_GRADIENT + cumulusFactor * CUMULUS_GRADIENT;
+    float4 baseGradient = stratusFactor * stratusGradient + stratoCumulusFactor * stratocumulusGradient + cumulusFactor * cumulusGradient;
     
-	// gradicent computation (see Siggraph 2017 Nubis-Decima talk)
-	//return remap(heightFraction, baseGradient.x, baseGradient.y, 0.0, 1.0) * remap(heightFraction, baseGradient.z, baseGradient.w, 1.0, 0.0);
     float v = smoothstep(baseGradient.x, baseGradient.y, inHeight) - smoothstep(baseGradient.z, baseGradient.w, inHeight);
     return saturate(v);
 }
@@ -157,7 +144,8 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     float2 uv = GetUVProjection(inSamplePosition);
     float2 staticUv = GetUVProjection(position);
     
-    float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, staticUv * 24.0 - 0.5, 0);
+    const float cloudMapBaseScale = 6.0;
+    float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, staticUv * cloudMapBaseScale * CoverageRepeat, 0);
     float coverage = cloudMapSample.r;
     float cloudType = cloudMapSample.b;
     
@@ -185,7 +173,6 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     if (inCheapSample == false)
     {
         // Sample high-frequency noises
-        // float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, inSamplePosition * DetailNoiseScale, inMipLevel).rgb;
         float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, float3(uv * 200.0 * DetailNoiseScale, heightFraction), inMipLevel).rgb;
     
         // Build high-frequency Worley noise FBM
@@ -246,8 +233,8 @@ float GetLightEnergy(float inHeightFraction, float inDensityLight, float inDensi
     float attenuationProbability = max(Remap(inCosAngle, 0.7, 1.0, secondaryAttenuation, secondaryAttenuation * 0.25), primaryAttenuation);
     
     // In-scattering
-    float depthProbability = lerp(0.08 + pow(inDensity, Remap(inHeightFraction, 0.3, 0.85, 0.5, 2.0)), 1.0, saturate(inDensityLight / inStepSize));
-    float verticalProbability = Remap(inHeightFraction, 0.07, 0.14, 0.1, 1.0) * 0.8;
+    float depthProbability = lerp(0.1 + pow(inDensity, Remap(inHeightFraction, 0.3, 0.85, 0.5, 2.0)), 1.0, saturate(inDensityLight / inStepSize));
+    float verticalProbability = Remap(inHeightFraction, 0.07, 0.14, 0.1, 1.0) * 0.9;
     float inScatterProbability = depthProbability * verticalProbability;
     
     float lightEnergy = attenuationProbability * inScatterProbability * inPhaseProbability * inBrightness;
@@ -274,7 +261,7 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
     
     // Calculate phase function
     float cosAngle = dot(inGlobalInfo.mSunDirection, inGlobalInfo.mViewDirection);
-    float phase = Phase(cosAngle);
+    float phase = HorizonPhase(cosAngle, Eccentricity, SilverIntensity, SilverSpread);
     
     float cloudTest = 0.0;
     int zeroDensitySampleCount = 0;
@@ -412,7 +399,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     }
     
     SunDirection = normalize(-SunDirection);
-    SunColor *= 1.5;
+    SunColor *= 1.4;
     
     CloudRenderingGlobalInfo globalInfo;
     globalInfo.mCameraPosition = ray.mOrigin;

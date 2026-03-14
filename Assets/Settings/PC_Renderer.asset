@@ -22,8 +22,7 @@ MonoBehaviour:
     NumSteps: 128
     LargeStepSizeMultiplier: 2
     UseJitter: 1
-    Phase: 3
-    Coverage: 0.696
+    CoverageRepeat: 4
     CloudType: 1
     WindAngle: 204
     CloudSpeed: 0
@@ -31,18 +30,15 @@ MonoBehaviour:
     GlobalDensity: 0.022
     GlobalScale: 0.000199
     ShapeNoiseScale: 1.8
-    DetailNoiseScale: 3.04
+    DetailNoiseScale: 2.67
     DetailNoiseInfluence: 0.4
-    Eccentricity: -0.71
-    Intensity: 1.25
-    Spread: 0.42
-    ForwardScatter: 0.584
-    BackwardScatter: -0.743
-    Weight: 0.282
-    Brightness: 1.27
+    Eccentricity: 0.4
+    SilverIntensity: 0.95
+    SilverSpread: 1
+    Brightness: 1.3
     ShowEarlyExit: 0
     ShowLongSteps: 0
-    ShowTextures: 1
+    ShowTextures: 0
     Slice: 0.175
     ActiveChannel: 3
     Mip: 0

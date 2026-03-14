@@ -5,10 +5,10 @@
 #include "Common.hlsl"
 #include "Noise.hlsl"
 
-float ResolutionInv;
+float ResolutionInv;             // (1 / Resolution) of any texture to which we write here
 
-RWTexture3D<float4> OutputNoise;
-RWTexture2D<float4> OutputMap;
+RWTexture3D<float4> OutputNoise; // Writeable 3D texture
+RWTexture2D<float4> OutputMap;   // Writeable 2D texture
 
 [numthreads(8, 8, 8)]
 void CloudNoiseShapeCS(uint3 id : SV_DispatchThreadID)
@@ -23,6 +23,10 @@ void CloudNoiseDetailCS(uint3 id : SV_DispatchThreadID)
     float3 uvw = TexelToUV(id, ResolutionInv);
     
     const float baseFrequency = 3.0;
+    
+    // For calculating worley noise we use the length squared 
+    // which produces more 'rich' details as oppossed to taking the square root.
+    // This detail noise calculation is based on Sebastien Hillaire's implementation where he also uses length squared.
     const int metric = METRIC_SQUARED;
     
     float worleyNoise0 = 1.0 - WorleyNoise(uvw, baseFrequency * 1.0, 0.0, metric);
@@ -41,8 +45,8 @@ void CloudMapCS(uint3 id : SV_DispatchThreadID)
 {
     float3 uvw = TexelToUV(id, ResolutionInv);
     
-    // A low frequency noise modulates cloud coverage to simulate those 
-    // large regions where air masses overlap and clouds are allowed to form
+    // A low frequency noise modulates cloud coverage to simulate the 
+    // large regions where air masses overlap and clouds are allowed to form.
     float lowFreqBase = PerlinFBM(uvw, 4, 6, false);
     lowFreqBase = Remap(lowFreqBase, -0.12, 1.0, 0.0, 15.0);
     
@@ -54,8 +58,19 @@ void CloudMapCS(uint3 id : SV_DispatchThreadID)
     worley = Remap(worley, 0.0, 1.0, -0.75, 1.25);
     float green = lowFreqBase * worley;
     
-    float cloudType = AlligatorFBM(uvw, 4, 6);
-    cloudType = pow(cloudType, 0.75);
+    // For cloud type we use the billows of alligator noise.
+    // Similarly as worley noise, it contains spots with high values that are gradually toned down.
+    // These bubbles/billows allow the clouds to have a heap-like appearance.
+    // Using a more uniform noise would result in clouds having the same height.
     
+    // Found out that using higher frequencies looks better. Six octaves for a full FBM.
+    float cloudType = AlligatorFBM(uvw, 8, 6);
+    
+    // Raises the lower values
+    cloudType = pow(cloudType, 0.8);
+    
+    // 'Highlight' cumulus clouds
+    cloudType = Remap(cloudType, 0.0, 1, 0.0, 1.2);
+        
     OutputMap[id.xy] = saturate(float4(red, green, cloudType, 1.0));
 }
