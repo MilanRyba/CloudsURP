@@ -17,7 +17,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
     CloudsPass m_CloudsPass;
 	CloudResourcesPass m_CloudResourcesPass;
 
-	bool RegenerateCloudResources = true;
+	bool m_RegenerateCloudResources = false;
 
 	public RTHandle GetNoiseShape() => m_CloudResourcesPass?.CloudNoiseShape;
 	public RTHandle GetNoiseDetail() => m_CloudResourcesPass?.CloudNoiseDetail;
@@ -28,7 +28,9 @@ public class CloudsRendererFeature : ScriptableRendererFeature
     {
         m_CloudsPass = new CloudsPass(m_CloudsPassSettings);
 		m_CloudResourcesPass = new CloudResourcesPass(m_CloudResourcesSettings);
-    }
+
+		m_RegenerateCloudResources = true;
+	}
 
 	// Called once per frame per camera, this method injects 'ScriptableRenderPass' instances into the renderer
 	public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
@@ -39,13 +41,11 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			return;
 		}
 
-		if (RegenerateCloudResources ||
+		if (m_RegenerateCloudResources ||
 			m_CloudResourcesPass?.CloudNoiseShape == null ||
 			m_CloudResourcesPass?.CloudNoiseDetail == null ||
 			m_CloudResourcesPass?.CloudMap == null)
 		{
-			RegenerateCloudResources = false;
-
 			if (m_CloudResourcesShader == null)
 			{
 				Debug.LogWarning("Cloud resources compute shader hasn't been assigned. Skipping CloudResourcesPass.");
@@ -54,6 +54,9 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			{
 				m_CloudResourcesPass.Setup(m_CloudResourcesShader);
 				renderer.EnqueuePass(m_CloudResourcesPass);
+
+				Debug.LogWarning("Enqueing CloudResourcesPass!");
+				m_RegenerateCloudResources = false;
 			}
 		}
 
@@ -76,7 +79,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 	private void OnValidate()
 	{
-		RegenerateCloudResources = true;
+		m_RegenerateCloudResources = true;
 	}
 
 	public enum TextureChannel { All, R, G, B, A }
@@ -103,7 +106,6 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 		[Tooltip("Offsets the starting sample position during the ray march")]
 		public bool UseJitter = true;
-
 
 
 		[Header("Shape")]
@@ -164,9 +166,6 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Tooltip("Enabling this setting will show pixels that stopped the ray march early due to low transmittance")]
 		public bool ShowEarlyExit = false;
 
-		[Tooltip("Enabling this setting will show pixels that only used long steps during ray march")]
-		public bool ShowLongSteps = false;
-
 		public bool ShowTextures = false;
 
 		[Range(0.0f, 1.0f)]
@@ -185,9 +184,6 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					(ActiveChannel == TextureChannel.A) ? 1 : 0);
 			}
 		}
-
-		[Range(0.0f, 7.0f)]
-		public float Mip = 0.0f;
 	}
 
 	[Serializable]
@@ -306,13 +302,13 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeVectorParam(m_Shader, "CameraPosition", inD.CameraPosition);
 					inCtx.cmd.SetComputeMatrixParam(m_Shader, "ProjInv", inD.ProjInv);
 					inCtx.cmd.SetComputeMatrixParam(m_Shader, "ViewInv", inD.ViewInv);
+					inCtx.cmd.SetComputeVectorParam(m_Shader, "SunDirection", inD.SunDirection);
+					inCtx.cmd.SetComputeVectorParam(m_Shader, "SunColor", inD.SunColor);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "Time", Time.time);
 
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "PlanetRadius", m_Settings.PlanetRadius);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "AtmosphereBottomHeight", m_Settings.AtmosphereBottomHeight);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "AtmosphereTopHeight", m_Settings.AtmosphereTopHeight);
-
-					inCtx.cmd.SetComputeVectorParam(m_Shader, "SunDirection", inD.SunDirection);
-					inCtx.cmd.SetComputeVectorParam(m_Shader, "SunColor", inD.SunColor);
 
 					inCtx.cmd.SetComputeIntParam(m_Shader, "NumSteps", m_Settings.NumSteps);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "LargeStepSizeMultiplier", m_Settings.LargeStepSizeMultiplier);
@@ -324,13 +320,12 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseScale", m_Settings.DetailNoiseScale);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseInfluence", m_Settings.DetailNoiseInfluence);
 					inCtx.cmd.SetComputeIntParam(m_Shader, "CoverageRepeat", m_Settings.CoverageRepeat);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudType", m_Settings.CloudType);
+					// inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudType", m_Settings.CloudType);
 
 					Vector3 windDirection = new Vector3(Mathf.Cos(m_Settings.WindAngle * Mathf.Deg2Rad), 0, -Mathf.Sin(m_Settings.WindAngle * Mathf.Deg2Rad));
-					inCtx.cmd.SetComputeVectorParam(m_Shader, "WindDirection", windDirection);
+					inCtx.cmd.SetComputeVectorParam(m_Shader, "WindDirection", windDirection.normalized);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudSpeed", m_Settings.CloudSpeed);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudTopOffset", m_Settings.CloudTopOffset);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "Time", Time.time);
 					
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Eccentricity", m_Settings.Eccentricity);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "SilverIntensity", m_Settings.SilverIntensity);
@@ -338,19 +333,17 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Brightness", m_Settings.Brightness);
 
-					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "Output", inD.Output);
-					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "SceneTexture", inD.SceneTexture);
-					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "DepthTexture", inD.DepthTexture);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "ShapeTexture", inD.NoiseShape);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "DetailTexture", inD.NoiseDetail);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CloudMap", inD.CloudMap);
+					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "SceneTexture", inD.SceneTexture);
+					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "DepthTexture", inD.DepthTexture);
+					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "Output", inD.Output);
 
 					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowEarlyExit", m_Settings.ShowEarlyExit ? 1 : 0);
-					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowLongSteps", m_Settings.ShowLongSteps ? 1 : 0);
 					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowTextures", m_Settings.ShowTextures ? 1 : 0);
-					inCtx.cmd.SetComputeVectorParam(m_Shader, "ChannelMask", m_Settings.ChannelMask);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Slice", m_Settings.Slice);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "Mip", m_Settings.Mip);
+					inCtx.cmd.SetComputeVectorParam(m_Shader, "ChannelMask", m_Settings.ChannelMask);
 
 					GraphicsHelper.Dispatch(inCtx, m_Shader, m_Kernel, (int)inD.ViewportDimensions.x, (int)inD.ViewportDimensions.y);
 				});

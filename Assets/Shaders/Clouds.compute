@@ -2,6 +2,7 @@
 
 #include "Common.hlsl"
 #include "Noise.hlsl"
+#include "Sky.hlsl"
 
 //
 // Common Render Settings
@@ -67,20 +68,19 @@ SamplerState sPointRepeat;
 SamplerState sPointClamp;
 
 uint ShowEarlyExit;
-uint ShowLongSteps;
 uint ShowTextures;
 float Slice;
 float4 ChannelMask;
-float Mip;
 
 static bool EarlyExit = false;
-static bool LongSteps = true;
 
 struct CloudRenderingGlobalInfo
 {
     float3 mCameraPosition;
     float3 mViewDirection;
     float3 mSunDirection; // Normalized vector going to the sun
+    float3 mSunColor;
+    float3 mAmbientColor;
     int mSampleCount;
     float mStaticHash;
 };
@@ -274,8 +274,6 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
         // cloudTest starts as zero so we always evaluate the second case from the beginning
         if (cloudTest > 0.0)
         {
-            // LongSteps = false;
-            
             // Sample density the expensive way by setting the last parameter to false, indicating a full sample
             float sampledDensity = SampleCloudDensity(samplePos, false, 0);
                 
@@ -295,7 +293,7 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
                                                        phase, cosAngle, raymarchInfo.mStepSize, Brightness);
                     
                     ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
-                                                (lightEnergy * SunColor + float3(0.2, 0.2, 0.25));
+                                                (lightEnergy * inGlobalInfo.mSunColor + inGlobalInfo.mAmbientColor);
                     
                     ioPixelData.mTransmittance *= exp(-sampledDensity * raymarchInfo.mStepSize);
                     
@@ -342,7 +340,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
             float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, Mip), ChannelMask);
+            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
             return;
         }
         
@@ -350,7 +348,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
             float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, Mip), ChannelMask);
+            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
             return;
         }
         
@@ -376,11 +374,17 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // Create camera ray
     Ray ray = GetCameraRay(uv, CameraPosition, ProjInv, ViewInv);
     
+    SunDirection = normalize(-SunDirection);
+    
+    float3 transmittance;
+    float3 sky = IntegrateScattering(ray.mOrigin, ray.mDirection, 1000000.0, SunDirection, SunColor, transmittance);
+    float3 sunColor = IntegrateScattering(ray.mOrigin, SunDirection, 1000000.0, SunDirection, SunColor, transmittance);
+    
     RayCastResult hit;
     if (RaySphereIntersection(PLANET_CENTER, PlanetRadius, ray, hit))
     {
         // We hit the planet
-        Output[id.xy] = sceneColor;
+        Output[id.xy] = float4(sky, 1.0);
         return;
     }
     
@@ -398,13 +402,15 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         return;
     }
     
-    SunDirection = normalize(-SunDirection);
-    SunColor *= 1.4;
+    // SunDirection = normalize(-SunDirection);
+    // SunColor *= 1.4;
     
     CloudRenderingGlobalInfo globalInfo;
     globalInfo.mCameraPosition = ray.mOrigin;
     globalInfo.mViewDirection = ray.mDirection;
     globalInfo.mSunDirection = SunDirection;
+    globalInfo.mSunColor = sunColor * 1.4;
+    globalInfo.mAmbientColor = float3(0.2, 0.2, 0.25);
     globalInfo.mSampleCount = NumSteps;
     globalInfo.mStaticHash = 0.0;
     
@@ -417,18 +423,12 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     
     RaymarchClouds(globalInfo, raySegment, pixelData);
     
-    float3 finalColor = sceneColor.rgb * pixelData.mTransmittance + pixelData.mScattering;
+    float3 finalColor = sky * pixelData.mTransmittance + pixelData.mScattering;
     Output[id.xy] = float4(finalColor, 1.0);
     
     if (EarlyExit)
     {
         float3 debugColor = finalColor * float3(0.42, 0.42, 0.6);
-        Output[id.xy] = float4(debugColor, 1.0);
-    }
-    
-    if (ShowLongSteps && LongSteps)
-    {
-        float3 debugColor = finalColor * float3(0.2, 0.2, 0.2);
         Output[id.xy] = float4(debugColor, 1.0);
     }
 }
