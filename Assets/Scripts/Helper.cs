@@ -4,6 +4,6 @@ public class Helper : MonoBehaviour
 {
     void Update()
     {
-        ScreenCapture.CaptureScreenshot("Screenshots/Clouds2.png");
+        ScreenCapture.CaptureScreenshot("Screenshots/Clouds3.png");
     }
 }

@@ -32,16 +32,14 @@ MonoBehaviour:
     ShapeNoiseScale: 1.8
     DetailNoiseScale: 2.67
     DetailNoiseInfluence: 0.4
-    Eccentricity: 0.4
-    SilverIntensity: 0.95
-    SilverSpread: 1
-    Brightness: 1.3
+    Eccentricity: 0.25
+    SilverIntensity: 0.92
+    SilverSpread: 0.25
+    Brightness: 1.1
     ShowEarlyExit: 0
-    ShowLongSteps: 0
     ShowTextures: 0
-    Slice: 0.175
+    Slice: 0.675
     ActiveChannel: 3
-    Mip: 0
   m_CloudResourcesSettings:
     RefreshResources: 0
 --- !u!114 &11400000
