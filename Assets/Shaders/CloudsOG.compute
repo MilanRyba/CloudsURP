@@ -2,6 +2,7 @@
 
 #include "Common.hlsl"
 #include "Noise.hlsl"
+#include "Sky.hlsl"
 
 //
 // Common Render Settings
@@ -81,6 +82,7 @@ struct CloudRenderingGlobalInfo
     float3 mCameraPosition;
     float3 mViewDirection;
     float3 mSunDirection; // Normalized vector going to the sun
+    float3 mSunColor;
     int mSampleCount;
     float mStaticHash;
 };
@@ -97,14 +99,14 @@ struct CloudRenderingPixelData
     float mTransmittance;
 };
 
-#define PLANET_CENTER float3(0, -PlanetRadius, 0)
+#define EARTH_CENTER float3(0, -PlanetRadius, 0)
 #define CLOUDS_BOTTOM_LAYER (PlanetRadius + AtmosphereBottomHeight)
 #define CLOUDS_TOP_LAYER (PlanetRadius + AtmosphereTopHeight)
 
 // Fractional value for sample position in the cloud layer
 float GetHeightFractionForPoint(float3 p)
 {
-    float height = length(p - PLANET_CENTER);
+    float height = length(p - EARTH_CENTER);
     return saturate((height - CLOUDS_BOTTOM_LAYER) / (CLOUDS_TOP_LAYER - CLOUDS_BOTTOM_LAYER));
 }
 
@@ -295,7 +297,7 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
                                                        phase, cosAngle, raymarchInfo.mStepSize, Brightness);
                     
                     ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
-                                                (lightEnergy * SunColor + float3(0.2, 0.2, 0.25));
+                                                (lightEnergy * inGlobalInfo.mSunColor + float3(0.2, 0.2, 0.25));
                     
                     ioPixelData.mTransmittance *= exp(-sampledDensity * raymarchInfo.mStepSize);
                     
@@ -376,20 +378,26 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // Create camera ray
     Ray ray = GetCameraRay(uv, CameraPosition, ProjInv, ViewInv);
     
+    SunDirection = normalize(-SunDirection);
+    
+    float3 transmittance;
+    float3 sky = IntegrateScattering(ray.mOrigin, ray.mDirection, 1000000.0, SunDirection, SunColor, transmittance);
+    float3 sunColor = IntegrateScattering(ray.mOrigin, SunDirection, 1000000.0, SunDirection, SunColor, transmittance);
+    
     RayCastResult hit;
-    if (RaySphereIntersection(PLANET_CENTER, PlanetRadius, ray, hit))
+    if (RaySphereIntersection(EARTH_CENTER, PlanetRadius, ray, hit))
     {
         // We hit the planet
-        Output[id.xy] = sceneColor;
+        Output[id.xy] = float4(sky, 1.0);
         return;
     }
     
     // Test for intersections with planet and clouds layers
     float2 raySegment;
-    RaySphereIntersection(PLANET_CENTER, CLOUDS_BOTTOM_LAYER, ray, hit);
+    RaySphereIntersection(EARTH_CENTER, CLOUDS_BOTTOM_LAYER, ray, hit);
     raySegment[0] = hit.mT1;
     
-    RaySphereIntersection(PLANET_CENTER, CLOUDS_TOP_LAYER, ray, hit);
+    RaySphereIntersection(EARTH_CENTER, CLOUDS_TOP_LAYER, ray, hit);
     raySegment[1] = hit.mT1;
     
     if (raySegment[1] <= raySegment[0] || raySegment[1] < 0.0)
@@ -398,13 +406,14 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         return;
     }
     
-    SunDirection = normalize(-SunDirection);
-    SunColor *= 1.4;
+    // SunDirection = normalize(-SunDirection);
+    // SunColor *= 1.4;
     
     CloudRenderingGlobalInfo globalInfo;
     globalInfo.mCameraPosition = ray.mOrigin;
     globalInfo.mViewDirection = ray.mDirection;
     globalInfo.mSunDirection = SunDirection;
+    globalInfo.mSunColor = sunColor * 1.4;
     globalInfo.mSampleCount = NumSteps;
     globalInfo.mStaticHash = 0.0;
     
@@ -417,7 +426,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     
     RaymarchClouds(globalInfo, raySegment, pixelData);
     
-    float3 finalColor = sceneColor.rgb * pixelData.mTransmittance + pixelData.mScattering;
+    float3 finalColor = sky * pixelData.mTransmittance + pixelData.mScattering;
     Output[id.xy] = float4(finalColor, 1.0);
     
     if (EarlyExit)
