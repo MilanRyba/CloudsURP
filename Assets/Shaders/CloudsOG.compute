@@ -31,12 +31,10 @@ uint UseJitter;
 
 
 float GlobalDensity;
-float GlobalScale;
 float ShapeNoiseScale;
 float DetailNoiseScale;
 float DetailNoiseInfluence;
 int CoverageRepeat;
-// float CloudType; This parameter should be moved into cloud map creation. Somehow. Same for coverage.
 
 //
 // Wind Settings
@@ -67,20 +65,18 @@ SamplerState sPointRepeat;
 SamplerState sPointClamp;
 
 uint ShowEarlyExit;
-uint ShowLongSteps;
 uint ShowTextures;
 float Slice;
 float4 ChannelMask;
-float Mip;
 
 static bool EarlyExit = false;
-static bool LongSteps = true;
 
 struct CloudRenderingGlobalInfo
 {
     float3 mCameraPosition;
     float3 mViewDirection;
     float3 mSunDirection; // Normalized vector going to the sun
+    float3 mSunColor;
     int mSampleCount;
     float mStaticHash;
 };
@@ -288,14 +284,14 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
             {
                 if (sampledDensity != 0.0)
                 {
-                    float densityToSun = SampleDensityToSun(samplePos, SunDirection, raymarchInfo);
+                    float densityToSun = SampleDensityToSun(samplePos, inGlobalInfo.mSunDirection, raymarchInfo);
                     
                     float heightFraction = GetHeightFractionForPoint(samplePos);
                     float lightEnergy = GetLightEnergy(heightFraction, densityToSun, sampledDensity, 
                                                        phase, cosAngle, raymarchInfo.mStepSize, Brightness);
                     
                     ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
-                                                (lightEnergy * SunColor + float3(0.2, 0.2, 0.25));
+                                                (lightEnergy * inGlobalInfo.mSunColor + float3(0.2, 0.2, 0.25));
                     
                     ioPixelData.mTransmittance *= exp(-sampledDensity * raymarchInfo.mStepSize);
                     
@@ -342,7 +338,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
             float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, Mip), ChannelMask);
+            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
             return;
         }
         
@@ -350,7 +346,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
             float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, Mip), ChannelMask);
+            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
             return;
         }
         
@@ -398,13 +394,14 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         return;
     }
     
-    SunDirection = normalize(-SunDirection);
-    SunColor *= 1.4;
-    
     CloudRenderingGlobalInfo globalInfo;
     globalInfo.mCameraPosition = ray.mOrigin;
     globalInfo.mViewDirection = ray.mDirection;
-    globalInfo.mSunDirection = SunDirection;
+    
+    // Access the sun parameters from this CloudRenderingGlobalInfo.
+    globalInfo.mSunDirection = normalize(-SunDirection);
+    globalInfo.mSunColor = SunColor * 1.4;
+    
     globalInfo.mSampleCount = NumSteps;
     globalInfo.mStaticHash = 0.0;
     
@@ -423,12 +420,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     if (EarlyExit)
     {
         float3 debugColor = finalColor * float3(0.42, 0.42, 0.6);
-        Output[id.xy] = float4(debugColor, 1.0);
-    }
-    
-    if (ShowLongSteps && LongSteps)
-    {
-        float3 debugColor = finalColor * float3(0.2, 0.2, 0.2);
         Output[id.xy] = float4(debugColor, 1.0);
     }
 }

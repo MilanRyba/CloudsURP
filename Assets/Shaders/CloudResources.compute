@@ -7,6 +7,10 @@
 
 float ResolutionInv;             // (1 / Resolution) of any texture to which we write here
 
+// Use these two parameters to create various cloud maps in the future
+// float GlobalCloudType;
+// float GlobalCoverage;
+
 RWTexture3D<float4> OutputNoise; // Writeable 3D texture
 RWTexture2D<float4> OutputMap;   // Writeable 2D texture
 
