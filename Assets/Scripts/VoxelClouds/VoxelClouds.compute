@@ -1,0 +1,319 @@
+#pragma kernel SimulationCS
+#pragma kernel ResetCS
+#pragma kernel PositionsCS
+
+Texture3D<uint> _AutomatonFrom;
+RWTexture3D<uint> _AutomatonTo;
+
+RWStructuredBuffer<float3> _Positions;
+
+struct Ellipsoid
+{
+    float4 Position;
+    float4 Scale;
+};
+
+StructuredBuffer<Ellipsoid> _Ellipsoids;
+int _NumEllipsoids;
+
+float _VoxelSize;            // Each voxel is a cube with side lengths of _VoxelSize meters
+int _Volume;                 // Total number of voxels
+int3 _VoxelGridResolution;   // Number of voxels in each dimension
+float3 _VoxelGridOrigin;     // World space position of voxel at coordinates (0, 0, 0)
+
+uint _CloudSpeed;
+uint _CloudOffset;
+
+uint _Visualization;
+uint _Seed;
+
+// Hashing functions
+
+#define FPRIME 1317666547U
+#define VPRIME uint3(3480082861U, 2420690917U, 2149110343U)
+#define SMALLESTFLOAT (1.0 / float(0xffffffffU))
+float hash13(float3 p)
+{
+    uint3 q = uint3(int3(p)) * VPRIME;
+    uint n = (q.x & q.y ^ q.z) * FPRIME;
+    return float(n) * SMALLESTFLOAT;
+}
+
+// 3 in 3 out hash
+#define UI0 1597334673U
+#define UI1 3812015801U
+#define UI3 uint3(UI0, UI1, 2798796415U)
+#define UIF (1.0 / float(0xffffffffU))
+float3 hash33(float3 p)
+{
+    uint3 q = uint3(int3(p)) * UI3;
+    q = (q.x ^ q.y ^ q.z) * UI3;
+    return float3(q) * UIF;
+}
+
+float GetRandom01(int3 inVoxelCoords)
+{
+    return hash13(inVoxelCoords + float3(_Seed - 252, _Seed, _Seed + 22));
+}
+
+// +----------------------+     +-------------------+     +-------+
+// | World Space Position | <=> | Voxel Coordinates | <=> | Index |
+// +----------------------+     +-------------------+     +-------+
+
+bool OutOfBoundsVoxelCoords(int3 inVoxelCoords)
+{
+    return any(inVoxelCoords < 0.0 || inVoxelCoords >= _VoxelGridResolution);
+}
+
+// Get voxel index from voxel coordinates. Returns -1 if coords are out of bounds.
+int IdxFromVoxelCoords(int3 inVoxelCoords)
+{
+    if (OutOfBoundsVoxelCoords(inVoxelCoords))
+        return -1;
+    
+    return inVoxelCoords.x + inVoxelCoords.y * _VoxelGridResolution.x + inVoxelCoords.z * _VoxelGridResolution.y * _VoxelGridResolution.x;
+}
+
+// Get voxel coordinates from world space position.
+int3 VoxelCoordsFromWorldPosition(float3 inPosition)
+{
+	float3 localPos = inPosition - _VoxelGridOrigin;
+    return int3(floor(localPos.x / _VoxelSize), floor(localPos.y / _VoxelSize), floor(localPos.z / _VoxelSize));
+}
+
+// Get voxel index from world space position. Returns -1 if inPosition lies outside the voxel space.
+int IdxFromWorldPosition(float3 inPosition)
+{
+    int3 voxelCoords = VoxelCoordsFromWorldPosition(inPosition);
+    return IdxFromVoxelCoords(voxelCoords);
+}
+
+// Get world space position of voxel center
+float3 WorldPositionFromVoxelCoords(int3 inVoxelCoords)
+{
+    // Scale voxel coordinates
+    float3 position = inVoxelCoords * _VoxelSize;
+
+	// Apply offset so that the position is in voxel center
+    float offset = 0.5f * _VoxelSize;
+    position += offset;
+
+    // Translate the position relative to the grid origin
+    position += _VoxelGridOrigin;
+
+    return position;
+}
+
+int3 VoxelCoordsFromIdx(int inIdx)
+{
+    int3 voxelCoords;
+    voxelCoords.z = inIdx / (_VoxelGridResolution.x * _VoxelGridResolution.y);
+    inIdx -= (voxelCoords.z * _VoxelGridResolution.x * _VoxelGridResolution.y);
+    voxelCoords.y = inIdx / _VoxelGridResolution.x;
+    voxelCoords.x = inIdx % _VoxelGridResolution.x;
+    return voxelCoords;
+}
+
+// Get world space position of voxel center
+float3 WorldPositionFromIdx(int inIdx)
+{
+    int3 voxelCoords = VoxelCoordsFromIdx(inIdx);
+	return WorldPositionFromVoxelCoords(voxelCoords);
+}
+
+bool SDScene(int3 inVoxelCoords, out float outDistance)
+{
+    float3 posWS = WorldPositionFromVoxelCoords(inVoxelCoords);
+    for (int i = 0; i < _NumEllipsoids; i++)
+    {
+        Ellipsoid e = _Ellipsoids[i];
+        
+        if (posWS.x > (e.Position.x - e.Scale.x) && posWS.x < (e.Position.x + e.Scale.x) &&
+			posWS.y > (e.Position.y - e.Scale.y) && posWS.y < (e.Position.y + e.Scale.y) &&
+			posWS.z > (e.Position.z - e.Scale.z) && posWS.z < (e.Position.z + e.Scale.z))
+        {
+            // 1 =  on the edge, 0 = centre
+			// (x/a)2 + (y/b)2 + (z/c)2 = 1 general equation for ellipsoid
+            float result = pow((posWS.x - e.Position.x) / e.Scale.x, 2) +
+                           pow((posWS.y - e.Position.y) / e.Scale.y, 2) +
+                           pow((posWS.z - e.Position.z) / e.Scale.z, 2);
+            if (result <= 1)
+            {
+                // Inside the ellipsoid
+                outDistance = result;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+float GetExtinctionProbability(int3 inVoxelCoords)
+{
+    float d;
+    if (!SDScene(inVoxelCoords, d))
+        return 0.9; // High clouds extiction outside the sphere
+    
+    // Increase extinction probability (a little bit) towards the edges
+    return lerp(0.001, 0.1, d);
+}
+
+float GetGenerationProbability(int3 inVoxelCoords)
+{
+    float d;
+    if (!SDScene(inVoxelCoords, d))
+        return 0.001; // Low geration outside the sphere
+    
+    // Increase extinction probability (a little bit) towards the edges
+    return lerp(0.15, 0.01, d);
+}
+
+//==============================
+// Voxel Byte Layout - 0000 0HCA
+//   H = Humidity
+//   C = Clouds
+//   A = Activation
+//==============================
+
+struct CloudVoxelData
+{
+    bool Humidity;
+    bool Clouds;
+    bool Activation;
+};
+
+CloudVoxelData UnpackVoxel(uint inVoxel)
+{
+    CloudVoxelData voxelData;
+    voxelData.Humidity = (inVoxel & (1 << 2)) != 0;
+    voxelData.Clouds = (inVoxel & (1 << 1)) != 0;
+    voxelData.Activation = (inVoxel & (1 << 0)) != 0;
+    return voxelData;
+}
+
+uint PackVoxel(CloudVoxelData inData)
+{
+    uint voxel = 0;
+    voxel |= inData.Humidity ? 1 << 2 : 0;
+    voxel |= inData.Clouds ? 1 << 1 : 0;
+    voxel |= inData.Activation ? 1 << 0 : 0;
+    return voxel;
+}
+
+// Transition Rules
+
+static const int3 SampleCoords[11] = { 
+    int3( 1,  0,  0), int3(0,  1, 0), int3(0, 0,  1), 
+    int3(-1,  0,  0), int3(0, -1, 0), int3(0, 0, -1), 
+    int3(-2,  0,  0), int3(2,  0, 0), 
+    int3( 0,  0, -2), int3(0,  0, 2), 
+    int3( 0, -2,  0)
+};
+
+bool ActivationFunction(int3 inVoxelCoords)
+{
+    for (int i = 0; i < 11; i++)
+    {
+        int3 sampleCoords = inVoxelCoords + SampleCoords[i];
+        if (OutOfBoundsVoxelCoords(sampleCoords))
+            continue;
+
+        uint voxel = _AutomatonFrom[sampleCoords];
+        CloudVoxelData voxelData = UnpackVoxel(voxel);
+        if (voxelData.Activation)
+            return true;
+    }
+    return false;
+}
+
+void DoTransition(int3 inVoxelCoords, CloudVoxelData inData, out CloudVoxelData outData)
+{
+    outData.Humidity = inData.Humidity && !inData.Activation;
+    outData.Clouds = inData.Clouds || inData.Activation;
+    outData.Activation = !inData.Activation && inData.Humidity && ActivationFunction(inVoxelCoords);
+}
+
+void DoExtinction(int3 inVoxelCoords, inout CloudVoxelData ioData)
+{
+    float rnd = GetRandom01(inVoxelCoords);
+    
+    float extinctionProb = GetExtinctionProbability(inVoxelCoords);
+    float generationProb = GetGenerationProbability(inVoxelCoords);
+    
+    // The ioData is actually the already transitioned voxels. The reason being...
+    // If Clouds = 0 in the original CloudVoxelData, then Clouds in the new CloudVoxelData would never be set to 1.
+    // (Maybe there are more good reasons to do it this way but I don't care to look for them)
+    
+    ioData.Clouds = ioData.Clouds && rnd > extinctionProb;
+    ioData.Humidity = ioData.Humidity || rnd < generationProb;
+    ioData.Activation = ioData.Activation || rnd < generationProb * 0.1;
+}
+
+[numthreads(4, 4, 4)]
+void SimulationCS(uint3 inVoxelCoords : SV_DispatchThreadID)
+{
+    int3 vCoords = inVoxelCoords;
+    if (OutOfBoundsVoxelCoords(vCoords))
+        return;
+        
+    // Calculate new voxel coordinates by applying wind
+    // TODO: Currently only one direction though...
+    
+    // offsetCoords are coordinates of a 'neighboring' voxel (depending on how large _CloudSpeed is).
+    // We use these coords in the transition rules to determined what state the neighboring voxel
+    // would be in and write this state at our coordinates.
+    int3 neighborCoords = (vCoords + int3(_CloudSpeed, 0, 0)) % _VoxelGridResolution;
+    
+    // These coordinates are used only for extinction rules where we convert voxel coordinates to a world position.
+    // The _CloudOffset is incremented before each simulation by _CloudSpeed to give us a 'global' offset so that 
+    // we always get the same world position and thus the same extinction probabilities.
+    int3 originalCoords = (vCoords + int3(_CloudOffset, 0, 0)) % _VoxelGridResolution;
+    
+    CloudVoxelData voxelDataFrom = UnpackVoxel(_AutomatonFrom[neighborCoords]);
+    CloudVoxelData voxelDataTo;
+    
+    DoTransition(neighborCoords, voxelDataFrom, voxelDataTo);
+    DoExtinction(originalCoords, voxelDataTo);
+    
+    _AutomatonTo[vCoords] = PackVoxel(voxelDataTo);
+}
+
+[numthreads(4, 4, 4)]
+void ResetCS(uint3 inVoxelCoords : SV_DispatchThreadID)
+{
+    int3 vCoords = inVoxelCoords;
+    if (OutOfBoundsVoxelCoords(vCoords))
+        return;
+    
+    CloudVoxelData voxelData;
+    voxelData.Humidity = GetRandom01(vCoords) < 0.25;
+    voxelData.Clouds = false;
+    voxelData.Activation = GetRandom01(vCoords) < 0.1;
+    _AutomatonTo[vCoords] = PackVoxel(voxelData);
+}
+
+[numthreads(4, 4, 4)]
+void PositionsCS(uint3 inVoxelCoords : SV_DispatchThreadID)
+{
+    int3 vCoords = inVoxelCoords;
+    if (OutOfBoundsVoxelCoords(vCoords))
+        return;
+    
+    uint voxel = _AutomatonFrom[vCoords];
+    CloudVoxelData voxelData = UnpackVoxel(voxel);
+    
+    bool assertion = false;
+    if (_Visualization == 0)
+        assertion = voxelData.Humidity;
+    else if (_Visualization == 1)
+        assertion = voxelData.Clouds;
+    else if (_Visualization == 2)
+        assertion = voxelData.Activation;
+    
+    
+    int idx = IdxFromVoxelCoords(vCoords);
+    if (assertion)
+        _Positions[idx] = WorldPositionFromIdx(idx);
+    else
+        _Positions[idx] = -220;
+}

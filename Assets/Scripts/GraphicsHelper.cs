@@ -9,6 +9,16 @@ namespace Helpers
 	{
 		#region Compute
 
+		public static void DispatchOld(ComputeShader inShader,
+			int inNumInvocationsX = 1, int inNumInvocationsY = 1, int inNumInvocationsZ = 1, int inKernel = 0)
+		{
+			Vector3Int threadGroupSizes = GetThreadGroupSizes(inShader, inKernel);
+			int numGroupsX = Mathf.CeilToInt(inNumInvocationsX / (float)threadGroupSizes.x);
+			int numGroupsY = Mathf.CeilToInt(inNumInvocationsY / (float)threadGroupSizes.y);
+			int numGroupsZ = Mathf.CeilToInt(inNumInvocationsZ / (float)threadGroupSizes.z);
+			inShader.Dispatch(inKernel, numGroupsX, numGroupsY, numGroupsZ);
+		}
+
 		// Get the size of compute thread groups as stated in the shader.
 		public static Vector3Int GetThreadGroupSizes(ComputeShader inShader, int inKernel = 0)
 		{
