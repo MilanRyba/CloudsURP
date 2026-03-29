@@ -32,7 +32,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		m_CloudResourcesPass = new CloudResourcesPass(m_CloudResourcesSettings);
 
 		m_CloudResourcesSettings.RefreshResources = true;
-		Debug.Log("Create() from CloudsRendererFeature");
+		// Debug.Log("Create() from CloudsRendererFeature");
     }
 
 	// Called once per frame per camera, this method injects 'ScriptableRenderPass' instances into the renderer
@@ -206,7 +206,6 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		public CloudsPass(CloudsPassSettings inSettings)
         {
             m_Settings = inSettings;
-
 			renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
         }
 

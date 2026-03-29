@@ -149,6 +149,30 @@ namespace Helpers
 			}
 		}
 
+		public static void CreateAutomaton(ref RTHandle outHandle, Vector3Int inDimensions, string inName)
+		{
+			if (outHandle == null ||
+				outHandle.rt.width != inDimensions.x ||
+				outHandle.rt.height != inDimensions.y ||
+				outHandle.rt.volumeDepth != inDimensions.z)
+			{
+				Release(outHandle);
+
+				var desc = new RenderTextureDescriptor(inDimensions.x, inDimensions.y, GraphicsFormat.R8_UInt, 0)
+				{
+					volumeDepth = inDimensions.z,
+					dimension = TextureDimension.Tex3D,
+					enableRandomWrite = true,
+					msaaSamples = 1,
+					sRGB = false,
+					useMipMap = false,
+					autoGenerateMips = false,
+				};
+
+				outHandle = RTHandles.Alloc(desc, name: inName);
+			}
+		}
+
 		public static void Release(RTHandle inTexture)
 		{
 			inTexture?.Release();
