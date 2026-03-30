@@ -34,6 +34,7 @@ bool SDScene(int3 inVoxelCoords, out float outDistance)
     for (int i = 0; i < _NumEllipsoids; i++)
     {
         Ellipsoid e = _Ellipsoids[i];
+        e.Scale /= 2.0;
         
         if (posWS.x > (e.Position.x - e.Scale.x) && posWS.x < (e.Position.x + e.Scale.x) &&
 			posWS.y > (e.Position.y - e.Scale.y) && posWS.y < (e.Position.y + e.Scale.y) &&

@@ -16,14 +16,6 @@ float3 SunDirection;
 float3 SunColor;
 float Time;
 
-/*
-//
-// Atmosphere Parameters
-//
-float PlanetRadius;
-float AtmosphereBottomHeight;
-float AtmosphereTopHeight;
-
 //
 // Raymarching Settings
 //
@@ -31,19 +23,7 @@ int NumSteps;
 float LargeStepSizeMultiplier;
 uint UseJitter;
 
-
 float GlobalDensity;
-float ShapeNoiseScale;
-float DetailNoiseScale;
-float DetailNoiseInfluence;
-int CoverageRepeat;
-
-//
-// Wind Settings
-//
-float3 WindDirection;
-float CloudSpeed;
-float CloudTopOffset;
 
 //
 // Phase Function Parameters
@@ -53,7 +33,6 @@ float SilverIntensity;
 float SilverSpread;
 
 float Brightness;
-*/
 
 Texture3D<uint> CloudAutomaton;
 Texture2D SceneTexture;
@@ -93,43 +72,29 @@ struct CloudRenderingPixelData
     float mTransmittance;
 };
 
-/*
-#define PLANET_CENTER float3(0, -PlanetRadius, 0)
-#define CLOUDS_BOTTOM_LAYER (PlanetRadius + AtmosphereBottomHeight)
-#define CLOUDS_TOP_LAYER (PlanetRadius + AtmosphereTopHeight)
-
 // Fractional value for sample position in the cloud layer
-float GetHeightFractionForPoint(float3 p)
+float GetHeightFractionForPoint(float3 inPosition)
 {
-    float height = length(p - PLANET_CENTER);
-    return saturate((height - CLOUDS_BOTTOM_LAYER) / (CLOUDS_TOP_LAYER - CLOUDS_BOTTOM_LAYER));
+    float bottomY = _VoxelGridOrigin.y;
+    float topY = _VoxelGridOrigin.y + _VoxelGridResolution.y * _VoxelSize;
+    return InverseLerp(inPosition.y, bottomY, topY);
 }
 
-float GetVerticalProfile(float inHeight, float inCloudType)
-{
-    const float4 stratusGradient = float4(0.0, 0.1, 0.2, 0.3);
-    const float4 stratocumulusGradient = float4(0.02, 0.2, 0.48, 0.625);
-    const float4 cumulusGradient = float4(0.0, 0.1625, 0.88, 0.98);
-    
-    float stratusFactor = 1.0 - clamp(inCloudType * 2.0, 0.0, 1.0);
-    float stratoCumulusFactor = 1.0 - abs(inCloudType - 0.5) * 2.0;
-    float cumulusFactor = clamp(inCloudType - 0.5, 0.0, 1.0) * 2.0;
-    
-    float4 baseGradient = stratusFactor * stratusGradient + stratoCumulusFactor * stratocumulusGradient + cumulusFactor * cumulusGradient;
-    
-    float v = smoothstep(baseGradient.x, baseGradient.y, inHeight) - smoothstep(baseGradient.z, baseGradient.w, inHeight);
-    return saturate(v);
-}
-
-// Spherical uv projection
-float2 GetUVProjection(float3 inPosition)
-{
-    return inPosition.xz / CLOUDS_BOTTOM_LAYER + 0.5;
-}
+#define SQUARE_ROOT_3_DIV_2 0.8660254
 
 float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipLevel)
 {
-    return 0.0;
+    int3 voxelCoords = VoxelCoordsFromWorldPosition(inSamplePosition);
+    CloudVoxelData voxelData = UnpackVoxel(CloudAutomaton[voxelCoords]);
+    
+    if (voxelData.Clouds == false)
+        return 0.0;
+    
+    float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords);
+    float dist = distance(inSamplePosition, voxelCenter);
+    float cloud = Remap(dist, 0.0, SQUARE_ROOT_3_DIV_2 * _VoxelSize, 1.0, 0.0);
+    
+    return saturate(cloud * GlobalDensity);
 }
 
 static const float3 NOISE_KERNEL[6] =
@@ -188,7 +153,7 @@ float GetLightEnergy(float inHeightFraction, float inDensityLight, float inDensi
 // inGlobalInfo - Global information for cloud rendering
 // inRaySegment - Contains distances to the bottom [0] and top [1] cloud layer from camera
 // ioPixelData - Transmittance and scattering used as input and output variables
-void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, inout CloudRenderingPixelData ioPixelData)
+void RaymarchVoxelClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, inout CloudRenderingPixelData ioPixelData)
 {
     // Init raymarch info struct
     CloudRenderingRaymarchInfo raymarchInfo;
@@ -271,7 +236,6 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
         }
     }
 }
-*/
 
 [numthreads(16, 16, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID)
@@ -303,63 +267,47 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         return;
     }
     
-    Output[id.xy] = sceneColor;
-    return;
-    // 
-    //=============================================================
-    // 
-    
     // Create camera ray
     Ray ray = GetCameraRay(uv, CameraPosition, ProjInv, ViewInv);
     
-    // RayCastResult hit;
-    // if (RaySphereIntersection(PLANET_CENTER, PlanetRadius, ray, hit))
-    // {
-    //     // We hit the planet
-    //     Output[id.xy] = sceneColor;
-    //     return;
-    // }
-    // 
-    // // Test for intersections with planet and clouds layers
-    // float2 raySegment;
-    // RaySphereIntersection(PLANET_CENTER, CLOUDS_BOTTOM_LAYER, ray, hit);
-    // raySegment[0] = hit.mT1;
-    // 
-    // RaySphereIntersection(PLANET_CENTER, CLOUDS_TOP_LAYER, ray, hit);
-    // raySegment[1] = hit.mT1;
-    // 
-    // if (raySegment[1] <= raySegment[0] || raySegment[1] < 0.0)
-    // {
-    //     Output[id.xy] = float4(1, 0, 1, 1);
-    //     return;
-    // }
+    RayCastResult hit;
     
-    // CloudRenderingGlobalInfo globalInfo;
-    // globalInfo.mCameraPosition = ray.mOrigin;
-    // globalInfo.mViewDirection = ray.mDirection;
-    // 
-    // // Access the sun parameters from this CloudRenderingGlobalInfo.
-    // globalInfo.mSunDirection = normalize(-SunDirection);
-    // globalInfo.mSunColor = SunColor * 1.4;
-    // 
-    // globalInfo.mSampleCount = NumSteps;
-    // globalInfo.mStaticHash = 0.0;
-    // 
-    // if (UseJitter)
-    //     globalInfo.mStaticHash = InterleavedGradientNoise(float2(id.xy) + Time);
-    // 
-    // CloudRenderingPixelData pixelData;
-    // pixelData.mTransmittance = 1.0;
-    // pixelData.mScattering = 0.0;
-    // 
-    // RaymarchClouds(globalInfo, raySegment, pixelData);
-    // 
-    // float3 finalColor = sceneColor.rgb * pixelData.mTransmittance + pixelData.mScattering;
-    // Output[id.xy] = float4(finalColor, 1.0);
-    // 
-    // if (EarlyExit)
-    // {
-    //     float3 debugColor = finalColor * float3(0.42, 0.42, 0.6);
-    //     Output[id.xy] = float4(debugColor, 1.0);
-    // }
+    // Test for intersections with planet and clouds layers
+    float2 raySegment;
+    if (!RayBoxIntersection(_VoxelGridOrigin, _VoxelGridOrigin + _VoxelGridResolution * _VoxelSize, ray, hit))
+    {
+        Output[id.xy] = sceneColor;
+        return;
+    }
+    raySegment[0] = hit.mT0;
+    raySegment[1] = hit.mT1;
+    
+    CloudRenderingGlobalInfo globalInfo;
+    globalInfo.mCameraPosition = ray.mOrigin;
+    globalInfo.mViewDirection = ray.mDirection;
+    
+    // Access the sun parameters from this CloudRenderingGlobalInfo.
+    globalInfo.mSunDirection = normalize(-SunDirection);
+    globalInfo.mSunColor = SunColor * 1.4;
+    
+    globalInfo.mSampleCount = NumSteps;
+    globalInfo.mStaticHash = 0.0;
+    
+    if (UseJitter)
+        globalInfo.mStaticHash = InterleavedGradientNoise(float2(id.xy) + Time);
+    
+    CloudRenderingPixelData pixelData;
+    pixelData.mTransmittance = 1.0;
+    pixelData.mScattering = 0.0;
+    
+    RaymarchVoxelClouds(globalInfo, raySegment, pixelData);
+    
+    float3 finalColor = sceneColor.rgb * pixelData.mTransmittance + pixelData.mScattering;
+    Output[id.xy] = float4(finalColor, 1.0);
+    
+    if (EarlyExit)
+    {
+        float3 debugColor = finalColor * float3(0.42, 0.42, 0.6);
+        Output[id.xy] = float4(debugColor, 1.0);
+    }
 }

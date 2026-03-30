@@ -98,9 +98,9 @@ struct CloudRenderingPixelData
 #define CLOUDS_TOP_LAYER (PlanetRadius + AtmosphereTopHeight)
 
 // Fractional value for sample position in the cloud layer
-float GetHeightFractionForPoint(float3 p)
+float GetHeightFractionForPoint(float3 inPosition)
 {
-    float height = length(p - PLANET_CENTER);
+    float height = length(inPosition - PLANET_CENTER);
     return saturate((height - CLOUDS_BOTTOM_LAYER) / (CLOUDS_TOP_LAYER - CLOUDS_BOTTOM_LAYER));
 }
 

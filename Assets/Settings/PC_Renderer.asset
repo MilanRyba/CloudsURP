@@ -12,24 +12,34 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b6ba738392fc4f34db818b3a3503231d, type: 3}
   m_Name: VoxelCloudsRendererFeature
   m_EditorClassIdentifier: Assembly-CSharp::VoxelCloudsRendererFeature
-  m_Active: 1
+  m_Active: 0
   m_VoxelCloudsShader: {fileID: 7200000, guid: 5791b1bdb7a62dd4389dfabe7830416f, type: 3}
   m_SimulationShader: {fileID: 7200000, guid: d22698f12394b7e4eb9424e820834edd, type: 3}
   m_CommonSettings:
-    WorldExtents: {x: 20, y: 10, z: 20}
+    WorldExtents: {x: 256, y: 32, z: 256}
     WorldOffset: {x: 0, y: 0, z: 0}
-    VoxelSize: 1
-    Visualization: 3
+    VoxelSize: 2
+    Visualization: 1
   m_VoxelCloudsPassSettings:
+    NumSteps: 128
+    LargeStepSizeMultiplier: 3
+    UseJitter: 1
+    GlobalDensity: 0.021
+    Eccentricity: 0.65
+    SilverIntensity: 0.95
+    SilverSpread: 1
+    Brightness: 1
     ShowEarlyExit: 0
     ShowTextures: 0
-    Slice: 1
+    Slice: 0.5
   m_SimulationPassSettings:
-    CloudSpeed: 0
+    CloudSpeed: 1
     Ellipsoids:
     - Position: {x: 62, y: 0, z: 78, w: 0}
       Scale: {x: 44, y: 20, z: 76, w: 0}
-    TimeBetweenUpdates: 0.81
+    - Position: {x: 0, y: 0, z: 0, w: 0}
+      Scale: {x: 73, y: 14, z: 45, w: 0}
+    TimeBetweenUpdates: 0.5
 --- !u!114 &-7801735191280408724
 MonoBehaviour:
   m_ObjectHideFlags: 0

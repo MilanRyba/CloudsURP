@@ -107,7 +107,6 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		public bool UseJitter = true;
 
 
-
 		[Header("Shape")]
 
 		[Range(1, 10)]

@@ -26,10 +26,17 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 
 	public RTHandle GetCloudAutomaton() => m_SimulationPass?.CloudAutomaton;
 
+	// Unity calls this method on the following events:
+	//   - When the Renderer Feature loads the first time.
+	//   - When you enable or disable the Renderer Feature.
+	//   - When you change a property in the inspector of the Renderer Feature.
+	// (Create() is not called when Renderer Feature overrides the OnValidate() method which is called instead)
 	public override void Create()
     {
 		m_VoxelCloudsPass = new VoxelCloudsPass(m_CommonSettings, m_VoxelCloudsPassSettings);
         m_SimulationPass = new SimulationPass(m_CommonSettings, m_SimulationPassSettings);
+
+		Debug.Log("Created VoxelCloudsRendererFeature.");
     }
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
@@ -101,6 +108,37 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 	[Serializable]
 	public class VoxelCloudsPassSettings
 	{
+		[Range(8, 256), Tooltip("The maximum number of steps the raymarcher will take")]
+		public int NumSteps = 128;
+
+		[Range(2.0f, 4.0f)]
+		public float LargeStepSizeMultiplier = 3.0f;
+
+		[Tooltip("Offsets the starting sample position during the ray march")]
+		public bool UseJitter = true;
+
+		[Range(0.0f, 1.0f)]
+		public float GlobalDensity = 0.021f;
+
+
+		[Header("Phase")]
+
+		// TODO: What is this tooltip??
+		[Range(-0.99f, 0.99f), Tooltip("Directional scattering bias. Values >1 make the light scatter forward and values <1 backward")]
+		public float Eccentricity = 0.65f;
+
+		[Range(0.0f, 4.0f)]
+		public float SilverIntensity = 0.95f;
+
+		[Range(0.0f, 2.0f)]
+		public float SilverSpread = 1.0f;
+
+		[Space(2.0f)]
+
+		[Range(0.0f, 2.0f)]
+		public float Brightness = 1.0f;
+
+
 		[Header("Debug")]
 
 		[Tooltip("Enabling this setting will show pixels that stopped the ray march early due to low transmittance")]
@@ -234,26 +272,17 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeVectorParam(m_Shader, "SunColor", inD.SunColor);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Time", Time.time);
 
-					// inCtx.cmd.SetComputeIntParam(m_Shader, "NumSteps", m_Settings.NumSteps);
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "LargeStepSizeMultiplier", m_Settings.LargeStepSizeMultiplier);
-					// inCtx.cmd.SetComputeIntParam(m_Shader, "UseJitter", m_Settings.UseJitter ? 1 : 0);
-					// 
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "GlobalDensity", m_Settings.GlobalDensity);
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "ShapeNoiseScale", m_Settings.ShapeNoiseScale);
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseScale", m_Settings.DetailNoiseScale);
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseInfluence", m_Settings.DetailNoiseInfluence);
-					// inCtx.cmd.SetComputeIntParam(m_Shader, "CoverageRepeat", m_Settings.CoverageRepeat);
-					// 
-					// Vector3 windDirection = new Vector3(Mathf.Cos(m_Settings.WindAngle * Mathf.Deg2Rad), 0, -Mathf.Sin(m_Settings.WindAngle * Mathf.Deg2Rad));
-					// inCtx.cmd.SetComputeVectorParam(m_Shader, "WindDirection", windDirection);
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudSpeed", m_Settings.CloudSpeed);
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudTopOffset", m_Settings.CloudTopOffset);
-					// 
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "Eccentricity", m_Settings.Eccentricity);
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "SilverIntensity", m_Settings.SilverIntensity);
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "SilverSpread", m_Settings.SilverSpread);
-					// 
-					// inCtx.cmd.SetComputeFloatParam(m_Shader, "Brightness", m_Settings.Brightness);
+					inCtx.cmd.SetComputeIntParam(m_Shader, "NumSteps", m_Settings.NumSteps);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "LargeStepSizeMultiplier", m_Settings.LargeStepSizeMultiplier);
+					inCtx.cmd.SetComputeIntParam(m_Shader, "UseJitter", m_Settings.UseJitter ? 1 : 0);
+					
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "GlobalDensity", m_Settings.GlobalDensity);
+					
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "Eccentricity", m_Settings.Eccentricity);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "SilverIntensity", m_Settings.SilverIntensity);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "SilverSpread", m_Settings.SilverSpread);
+					
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "Brightness", m_Settings.Brightness);
 
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CloudAutomaton", inD.CloudAutomaton);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "SceneTexture", inD.SceneTexture);

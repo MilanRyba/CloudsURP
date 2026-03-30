@@ -189,7 +189,7 @@ public class VoxelCloudsGPU : MonoBehaviour
 		for (int i = 0; i <  m_Ellipsoids.Length; i++)
 		{
 			m_EllipsoidsData[i].Position = m_Ellipsoids[i].position;
-			m_EllipsoidsData[i].Scale = m_Ellipsoids[i].localScale / 2.0f;
+			m_EllipsoidsData[i].Scale = m_Ellipsoids[i].localScale;
 		}
 		m_EllipsoidsBuffer.SetData(m_EllipsoidsData);
 		m_Shader.SetBuffer(kernel, "_Ellipsoids", m_EllipsoidsBuffer);
