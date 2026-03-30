@@ -48,6 +48,13 @@ namespace Helpers
 			inCtx.cmd.DispatchCompute(inShader, inKernel, numGroups.x, numGroups.y, numGroups.z);
 		}
 
+		public static void Dispatch(ComputeGraphContext inCtx, ComputeShader inShader, int inKernel, Vector3Int inNumInvocationsXYZ)
+		{
+			Vector3Int threadGroupSizes = GetThreadGroupSizes(inShader, inKernel);
+			Vector3Int numGroups = GetNumThreadGroups(inShader, inKernel, inNumInvocationsXYZ.x, inNumInvocationsXYZ.y, inNumInvocationsXYZ.z);
+			inCtx.cmd.DispatchCompute(inShader, inKernel, numGroups.x, numGroups.y, numGroups.z);
+		}
+
 		// Record a commnand in a ComputeGraphContext which dispatches a compute shader.
 		// The number of invocations is the same in X and Y dimensions, Z is 1.
 		public static void DispatchXY(ComputeGraphContext inCtx, ComputeShader inShader, int inKernel, int inNumInvocationsXY)

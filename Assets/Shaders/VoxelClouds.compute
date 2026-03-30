@@ -1,0 +1,365 @@
+#pragma kernel CSMain
+
+#include "VoxelCloudsCommon.hlsl"
+#include "Common.hlsl"
+#include "Noise.hlsl"
+
+//
+// Common Render Settings
+//
+float2 ViewportDimensions;
+float2 ViewportDimensionsInv;
+float3 CameraPosition;
+float4x4 ProjInv;
+float4x4 ViewInv;
+float3 SunDirection;
+float3 SunColor;
+float Time;
+
+/*
+//
+// Atmosphere Parameters
+//
+float PlanetRadius;
+float AtmosphereBottomHeight;
+float AtmosphereTopHeight;
+
+//
+// Raymarching Settings
+//
+int NumSteps;
+float LargeStepSizeMultiplier;
+uint UseJitter;
+
+
+float GlobalDensity;
+float ShapeNoiseScale;
+float DetailNoiseScale;
+float DetailNoiseInfluence;
+int CoverageRepeat;
+
+//
+// Wind Settings
+//
+float3 WindDirection;
+float CloudSpeed;
+float CloudTopOffset;
+
+//
+// Phase Function Parameters
+//
+float Eccentricity;
+float SilverIntensity;
+float SilverSpread;
+
+float Brightness;
+*/
+
+Texture3D<uint> CloudAutomaton;
+Texture2D SceneTexture;
+Texture2D DepthTexture;
+RWTexture2D<float4> Output;
+
+SamplerState sLinearRepeat;
+SamplerState sLinearClamp;
+SamplerState sPointRepeat;
+SamplerState sPointClamp;
+
+uint ShowEarlyExit;
+uint ShowTextures;
+float Slice;
+
+static bool EarlyExit = false;
+
+struct CloudRenderingGlobalInfo
+{
+    float3 mCameraPosition;
+    float3 mViewDirection;
+    float3 mSunDirection; // Normalized vector going to the sun
+    float3 mSunColor;
+    int mSampleCount;
+    float mStaticHash;
+};
+
+struct CloudRenderingRaymarchInfo
+{
+    float mDistance; // Current distance from camera along the main ray
+    float mStepSize;
+};
+
+struct CloudRenderingPixelData
+{
+    float3 mScattering;
+    float mTransmittance;
+};
+
+/*
+#define PLANET_CENTER float3(0, -PlanetRadius, 0)
+#define CLOUDS_BOTTOM_LAYER (PlanetRadius + AtmosphereBottomHeight)
+#define CLOUDS_TOP_LAYER (PlanetRadius + AtmosphereTopHeight)
+
+// Fractional value for sample position in the cloud layer
+float GetHeightFractionForPoint(float3 p)
+{
+    float height = length(p - PLANET_CENTER);
+    return saturate((height - CLOUDS_BOTTOM_LAYER) / (CLOUDS_TOP_LAYER - CLOUDS_BOTTOM_LAYER));
+}
+
+float GetVerticalProfile(float inHeight, float inCloudType)
+{
+    const float4 stratusGradient = float4(0.0, 0.1, 0.2, 0.3);
+    const float4 stratocumulusGradient = float4(0.02, 0.2, 0.48, 0.625);
+    const float4 cumulusGradient = float4(0.0, 0.1625, 0.88, 0.98);
+    
+    float stratusFactor = 1.0 - clamp(inCloudType * 2.0, 0.0, 1.0);
+    float stratoCumulusFactor = 1.0 - abs(inCloudType - 0.5) * 2.0;
+    float cumulusFactor = clamp(inCloudType - 0.5, 0.0, 1.0) * 2.0;
+    
+    float4 baseGradient = stratusFactor * stratusGradient + stratoCumulusFactor * stratocumulusGradient + cumulusFactor * cumulusGradient;
+    
+    float v = smoothstep(baseGradient.x, baseGradient.y, inHeight) - smoothstep(baseGradient.z, baseGradient.w, inHeight);
+    return saturate(v);
+}
+
+// Spherical uv projection
+float2 GetUVProjection(float3 inPosition)
+{
+    return inPosition.xz / CLOUDS_BOTTOM_LAYER + 0.5;
+}
+
+float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipLevel)
+{
+    return 0.0;
+}
+
+static const float3 NOISE_KERNEL[6] =
+{
+    float3(0.38051305, 0.92453449, -0.02111345),
+	float3(-0.50625799, -0.03590792, -0.86163418),
+	float3(-0.32509218, -0.94557439, 0.01428793),
+	float3(0.09026238, -0.27376545, 0.95755165),
+	float3(0.28128598, 0.42443639, -0.86065785),
+	float3(-0.16852403, 0.14748697, 0.97460106)
+};
+
+// A function to gather density in a cone for use with lighting clouds
+// inSamplePosition - Current sample position in the main ray march loop
+// inDirection - Normalized direction to the sun
+// inRaymarchInfo - Raymarch info struct from main ray march loop
+float SampleDensityToSun(float3 inSamplePosition, float3 inDirection, CloudRenderingRaymarchInfo inRaymarchInfo)
+{
+    float densityToSun = 0.0;
+    float3 samplePos = inSamplePosition;
+    
+    // Lighting ray march loop
+    for (int i = 0; i < 6; i++)
+    {
+        samplePos += inDirection * inRaymarchInfo.mStepSize;
+        samplePos += inRaymarchInfo.mStepSize * NOISE_KERNEL[i] * float(i + 1);
+        
+        densityToSun += SampleCloudDensity(samplePos, false, int(i * 0.0));
+    }
+    
+    return densityToSun * inRaymarchInfo.mStepSize;
+}
+
+// Calculate the light energy as a combination of three probabilities
+float GetLightEnergy(float inHeightFraction, float inDensityLight, float inDensity,
+                     float inPhaseProbability, float inCosAngle, float inStepSize, float inBrightness)
+{
+    // Attenuation
+    float primaryAttenuation = exp(-inDensityLight);
+    float secondaryAttenuation = exp(-inDensityLight * 0.25) * 0.7;
+    
+    // Reduce the secondary component when we look toward the sun
+    float attenuationProbability = max(Remap(inCosAngle, 0.7, 1.0, secondaryAttenuation, secondaryAttenuation * 0.25), primaryAttenuation);
+    
+    // In-scattering
+    float depthProbability = lerp(0.1 + pow(inDensity, Remap(inHeightFraction, 0.3, 0.85, 0.5, 2.0)), 1.0, saturate(inDensityLight / inStepSize));
+    float verticalProbability = Remap(inHeightFraction, 0.07, 0.14, 0.1, 1.0) * 0.9;
+    float inScatterProbability = depthProbability * verticalProbability;
+    
+    float lightEnergy = attenuationProbability * inScatterProbability * inPhaseProbability * inBrightness;
+    
+    return lightEnergy;
+}
+
+// Main ray march loop
+// inGlobalInfo - Global information for cloud rendering
+// inRaySegment - Contains distances to the bottom [0] and top [1] cloud layer from camera
+// ioPixelData - Transmittance and scattering used as input and output variables
+void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, inout CloudRenderingPixelData ioPixelData)
+{
+    // Init raymarch info struct
+    CloudRenderingRaymarchInfo raymarchInfo;
+    
+    // Determine step size - we take fewer number of steps when looking directly up
+    float horizonFactor = abs(dot(inGlobalInfo.mViewDirection, float3(0, 1, 0)));
+    float numSteps = lerp(inGlobalInfo.mSampleCount, inGlobalInfo.mSampleCount * 0.5, horizonFactor);
+    raymarchInfo.mStepSize = (inRaySegment[1] - inRaySegment[0]) / numSteps;
+    
+    // Set the start distance to the beginning of the ray segment and offset it by a random jitter
+    raymarchInfo.mDistance = inRaySegment[0] + inGlobalInfo.mStaticHash * raymarchInfo.mStepSize;
+    
+    // Calculate phase function
+    float cosAngle = dot(inGlobalInfo.mSunDirection, inGlobalInfo.mViewDirection);
+    float phase = HorizonPhase(cosAngle, Eccentricity, SilverIntensity, SilverSpread);
+    
+    float cloudTest = 0.0;
+    int zeroDensitySampleCount = 0;
+    
+    for (int i = 0; i < numSteps; i++)
+    {
+        // Calculate the sample position by adding the distance times the view vector to the camera position
+        float3 samplePos = inGlobalInfo.mCameraPosition + inGlobalInfo.mViewDirection * raymarchInfo.mDistance;
+        
+        // cloudTest starts as zero so we always evaluate the second case from the beginning
+        if (cloudTest > 0.0)
+        {
+            // LongSteps = false;
+            
+            // Sample density the expensive way by setting the last parameter to false, indicating a full sample
+            float sampledDensity = SampleCloudDensity(samplePos, false, 0);
+                
+            // If we just sampled a zero and the previous sample was zero, increment the counter
+            if (sampledDensity == 0.0)
+                zeroDensitySampleCount++;
+                
+            // If we are doing an expensive sample that is still potentially in the cloud
+            if (zeroDensitySampleCount != 6)
+            {
+                if (sampledDensity != 0.0)
+                {
+                    float densityToSun = SampleDensityToSun(samplePos, inGlobalInfo.mSunDirection, raymarchInfo);
+                    
+                    float heightFraction = GetHeightFractionForPoint(samplePos);
+                    float lightEnergy = GetLightEnergy(heightFraction, densityToSun, sampledDensity,
+                                                       phase, cosAngle, raymarchInfo.mStepSize, Brightness);
+                    
+                    ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
+                                                (lightEnergy * inGlobalInfo.mSunColor + float3(0.2, 0.2, 0.25));
+                    
+                    ioPixelData.mTransmittance *= exp(-sampledDensity * raymarchInfo.mStepSize);
+                    
+                    if (ioPixelData.mTransmittance < 0.01)
+                    {
+                        if (ShowEarlyExit)
+                            EarlyExit = true;
+                        
+                        break;
+                    }
+                }
+                
+                raymarchInfo.mDistance += raymarchInfo.mStepSize;
+            }
+            // If not, then set the cloudTest to zero so that we go back to the cheap sample case
+            else
+            {
+                cloudTest = 0.0;
+                zeroDensitySampleCount = 0;
+            }
+        }
+        else
+        {
+            // Sample density the cheap way, only using the low-frequency noise
+            cloudTest = SampleCloudDensity(samplePos, true, 0);
+            
+            if (cloudTest == 0.0)
+                raymarchInfo.mDistance += raymarchInfo.mStepSize * LargeStepSizeMultiplier;
+            else
+                raymarchInfo.mDistance -= raymarchInfo.mStepSize;
+        }
+    }
+}
+*/
+
+[numthreads(16, 16, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    if (any((float2) id.xy >= ViewportDimensions))
+        return;
+    
+    if (ShowTextures)
+    {
+        float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(276.0f, 276.0f));
+        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        {
+            float3 pos = float3(debugUV.x, Slice, debugUV.y);
+            int3 voxelCoords = pos * _VoxelGridResolution;
+            CloudVoxelData data = UnpackVoxel(CloudAutomaton[voxelCoords]);
+            Output[id.xy] = ColorFromVoxelVisualization(data);
+            return;
+        }
+    }
+        
+    float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
+    float4 sceneColor = SceneTexture.SampleLevel(sPointClamp, uv, 0);
+    float sceneDepth = DepthTexture.SampleLevel(sPointClamp, uv, 0).r;
+    
+    // Geometry in the scene is obscuring the clouds
+    if (sceneDepth > 0.0)
+    {
+        Output[id.xy] = sceneColor;
+        return;
+    }
+    
+    Output[id.xy] = sceneColor;
+    return;
+    // 
+    //=============================================================
+    // 
+    
+    // Create camera ray
+    Ray ray = GetCameraRay(uv, CameraPosition, ProjInv, ViewInv);
+    
+    // RayCastResult hit;
+    // if (RaySphereIntersection(PLANET_CENTER, PlanetRadius, ray, hit))
+    // {
+    //     // We hit the planet
+    //     Output[id.xy] = sceneColor;
+    //     return;
+    // }
+    // 
+    // // Test for intersections with planet and clouds layers
+    // float2 raySegment;
+    // RaySphereIntersection(PLANET_CENTER, CLOUDS_BOTTOM_LAYER, ray, hit);
+    // raySegment[0] = hit.mT1;
+    // 
+    // RaySphereIntersection(PLANET_CENTER, CLOUDS_TOP_LAYER, ray, hit);
+    // raySegment[1] = hit.mT1;
+    // 
+    // if (raySegment[1] <= raySegment[0] || raySegment[1] < 0.0)
+    // {
+    //     Output[id.xy] = float4(1, 0, 1, 1);
+    //     return;
+    // }
+    
+    // CloudRenderingGlobalInfo globalInfo;
+    // globalInfo.mCameraPosition = ray.mOrigin;
+    // globalInfo.mViewDirection = ray.mDirection;
+    // 
+    // // Access the sun parameters from this CloudRenderingGlobalInfo.
+    // globalInfo.mSunDirection = normalize(-SunDirection);
+    // globalInfo.mSunColor = SunColor * 1.4;
+    // 
+    // globalInfo.mSampleCount = NumSteps;
+    // globalInfo.mStaticHash = 0.0;
+    // 
+    // if (UseJitter)
+    //     globalInfo.mStaticHash = InterleavedGradientNoise(float2(id.xy) + Time);
+    // 
+    // CloudRenderingPixelData pixelData;
+    // pixelData.mTransmittance = 1.0;
+    // pixelData.mScattering = 0.0;
+    // 
+    // RaymarchClouds(globalInfo, raySegment, pixelData);
+    // 
+    // float3 finalColor = sceneColor.rgb * pixelData.mTransmittance + pixelData.mScattering;
+    // Output[id.xy] = float4(finalColor, 1.0);
+    // 
+    // if (EarlyExit)
+    // {
+    //     float3 debugColor = finalColor * float3(0.42, 0.42, 0.6);
+    //     Output[id.xy] = float4(debugColor, 1.0);
+    // }
+}

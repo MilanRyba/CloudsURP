@@ -2,6 +2,9 @@
 #pragma kernel ResetCS
 #pragma kernel PositionsCS
 
+#include "VoxelCloudsCommon.hlsl"
+#include "Common.hlsl"
+
 Texture3D<uint> _AutomatonFrom;
 RWTexture3D<uint> _AutomatonTo;
 
@@ -12,113 +15,17 @@ struct Ellipsoid
     float4 Position;
     float4 Scale;
 };
-
 StructuredBuffer<Ellipsoid> _Ellipsoids;
 int _NumEllipsoids;
-
-float _VoxelSize;            // Each voxel is a cube with side lengths of _VoxelSize meters
-int _Volume;                 // Total number of voxels
-int3 _VoxelGridResolution;   // Number of voxels in each dimension
-float3 _VoxelGridOrigin;     // World space position of voxel at coordinates (0, 0, 0)
 
 uint _CloudSpeed;
 uint _CloudOffset;
 
-uint _Visualization;
 uint _Seed;
-
-// Hashing functions
-
-#define FPRIME 1317666547U
-#define VPRIME uint3(3480082861U, 2420690917U, 2149110343U)
-#define SMALLESTFLOAT (1.0 / float(0xffffffffU))
-float hash13(float3 p)
-{
-    uint3 q = uint3(int3(p)) * VPRIME;
-    uint n = (q.x & q.y ^ q.z) * FPRIME;
-    return float(n) * SMALLESTFLOAT;
-}
-
-// 3 in 3 out hash
-#define UI0 1597334673U
-#define UI1 3812015801U
-#define UI3 uint3(UI0, UI1, 2798796415U)
-#define UIF (1.0 / float(0xffffffffU))
-float3 hash33(float3 p)
-{
-    uint3 q = uint3(int3(p)) * UI3;
-    q = (q.x ^ q.y ^ q.z) * UI3;
-    return float3(q) * UIF;
-}
 
 float GetRandom01(int3 inVoxelCoords)
 {
     return hash13(inVoxelCoords + float3(_Seed - 252, _Seed, _Seed + 22));
-}
-
-// +----------------------+     +-------------------+     +-------+
-// | World Space Position | <=> | Voxel Coordinates | <=> | Index |
-// +----------------------+     +-------------------+     +-------+
-
-bool OutOfBoundsVoxelCoords(int3 inVoxelCoords)
-{
-    return any(inVoxelCoords < 0.0 || inVoxelCoords >= _VoxelGridResolution);
-}
-
-// Get voxel index from voxel coordinates. Returns -1 if coords are out of bounds.
-int IdxFromVoxelCoords(int3 inVoxelCoords)
-{
-    if (OutOfBoundsVoxelCoords(inVoxelCoords))
-        return -1;
-    
-    return inVoxelCoords.x + inVoxelCoords.y * _VoxelGridResolution.x + inVoxelCoords.z * _VoxelGridResolution.y * _VoxelGridResolution.x;
-}
-
-// Get voxel coordinates from world space position.
-int3 VoxelCoordsFromWorldPosition(float3 inPosition)
-{
-	float3 localPos = inPosition - _VoxelGridOrigin;
-    return int3(floor(localPos.x / _VoxelSize), floor(localPos.y / _VoxelSize), floor(localPos.z / _VoxelSize));
-}
-
-// Get voxel index from world space position. Returns -1 if inPosition lies outside the voxel space.
-int IdxFromWorldPosition(float3 inPosition)
-{
-    int3 voxelCoords = VoxelCoordsFromWorldPosition(inPosition);
-    return IdxFromVoxelCoords(voxelCoords);
-}
-
-// Get world space position of voxel center
-float3 WorldPositionFromVoxelCoords(int3 inVoxelCoords)
-{
-    // Scale voxel coordinates
-    float3 position = inVoxelCoords * _VoxelSize;
-
-	// Apply offset so that the position is in voxel center
-    float offset = 0.5f * _VoxelSize;
-    position += offset;
-
-    // Translate the position relative to the grid origin
-    position += _VoxelGridOrigin;
-
-    return position;
-}
-
-int3 VoxelCoordsFromIdx(int inIdx)
-{
-    int3 voxelCoords;
-    voxelCoords.z = inIdx / (_VoxelGridResolution.x * _VoxelGridResolution.y);
-    inIdx -= (voxelCoords.z * _VoxelGridResolution.x * _VoxelGridResolution.y);
-    voxelCoords.y = inIdx / _VoxelGridResolution.x;
-    voxelCoords.x = inIdx % _VoxelGridResolution.x;
-    return voxelCoords;
-}
-
-// Get world space position of voxel center
-float3 WorldPositionFromIdx(int inIdx)
-{
-    int3 voxelCoords = VoxelCoordsFromIdx(inIdx);
-	return WorldPositionFromVoxelCoords(voxelCoords);
 }
 
 bool SDScene(int3 inVoxelCoords, out float outDistance)
@@ -166,38 +73,6 @@ float GetGenerationProbability(int3 inVoxelCoords)
     
     // Increase extinction probability (a little bit) towards the edges
     return lerp(0.15, 0.01, d);
-}
-
-//==============================
-// Voxel Byte Layout - 0000 0HCA
-//   H = Humidity
-//   C = Clouds
-//   A = Activation
-//==============================
-
-struct CloudVoxelData
-{
-    bool Humidity;
-    bool Clouds;
-    bool Activation;
-};
-
-CloudVoxelData UnpackVoxel(uint inVoxel)
-{
-    CloudVoxelData voxelData;
-    voxelData.Humidity = (inVoxel & (1 << 2)) != 0;
-    voxelData.Clouds = (inVoxel & (1 << 1)) != 0;
-    voxelData.Activation = (inVoxel & (1 << 0)) != 0;
-    return voxelData;
-}
-
-uint PackVoxel(CloudVoxelData inData)
-{
-    uint voxel = 0;
-    voxel |= inData.Humidity ? 1 << 2 : 0;
-    voxel |= inData.Clouds ? 1 << 1 : 0;
-    voxel |= inData.Activation ? 1 << 0 : 0;
-    return voxel;
 }
 
 // Transition Rules
@@ -310,10 +185,9 @@ void PositionsCS(uint3 inVoxelCoords : SV_DispatchThreadID)
     else if (_Visualization == 2)
         assertion = voxelData.Activation;
     
-    
     int idx = IdxFromVoxelCoords(vCoords);
     if (assertion)
-        _Positions[idx] = WorldPositionFromIdx(idx);
+        _Positions[idx] = WorldPositionFromVoxelCoords(vCoords);
     else
         _Positions[idx] = -220;
 }

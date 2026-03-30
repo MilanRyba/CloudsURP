@@ -13,19 +13,23 @@ MonoBehaviour:
   m_Name: VoxelCloudsRendererFeature
   m_EditorClassIdentifier: Assembly-CSharp::VoxelCloudsRendererFeature
   m_Active: 1
+  m_VoxelCloudsShader: {fileID: 7200000, guid: 5791b1bdb7a62dd4389dfabe7830416f, type: 3}
   m_SimulationShader: {fileID: 7200000, guid: d22698f12394b7e4eb9424e820834edd, type: 3}
-  m_SimulationPassSettings:
-    WorldExtents: {x: 256, y: 32, z: 256}
+  m_CommonSettings:
+    WorldExtents: {x: 20, y: 10, z: 20}
     WorldOffset: {x: 0, y: 0, z: 0}
-    VoxelSize: 2
-    CloudSpeed: 1
+    VoxelSize: 1
+    Visualization: 3
+  m_VoxelCloudsPassSettings:
+    ShowEarlyExit: 0
+    ShowTextures: 0
+    Slice: 1
+  m_SimulationPassSettings:
+    CloudSpeed: 0
     Ellipsoids:
     - Position: {x: 62, y: 0, z: 78, w: 0}
       Scale: {x: 44, y: 20, z: 76, w: 0}
-    TimeBetweenUpdates: 0.25
-    VoxelMesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
-    VoxelMaterial: {fileID: 2100000, guid: 87b41fc2e60e71d46ab05b6804010d74, type: 2}
-    Visualization: 1
+    TimeBetweenUpdates: 0.81
 --- !u!114 &-7801735191280408724
 MonoBehaviour:
   m_ObjectHideFlags: 0
