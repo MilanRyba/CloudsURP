@@ -119,6 +119,37 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &17687282
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 17687283}
+  m_Layer: 0
+  m_Name: Ellipsoid3
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &17687283
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 17687282}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -33, y: -5, z: -17}
+  m_LocalScale: {x: 76, y: 31, z: 102}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -569,8 +600,8 @@ Transform:
   m_GameObject: {fileID: 1077029078}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 62, y: 0, z: 78}
-  m_LocalScale: {x: 44, y: 20, z: 76}
+  m_LocalPosition: {x: 62, y: 4, z: 78}
+  m_LocalScale: {x: 100, y: 37, z: 76}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -612,6 +643,7 @@ MonoBehaviour:
   m_Ellipsoids:
   - {fileID: 1077029079}
   - {fileID: 2142298864}
+  - {fileID: 17687283}
   m_TimeBetweenUpdates: 0.5
   m_Material: {fileID: 2100000, guid: 87b41fc2e60e71d46ab05b6804010d74, type: 2}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
@@ -701,8 +733,8 @@ Transform:
   m_GameObject: {fileID: 2142298863}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 73, y: 14, z: 45}
+  m_LocalPosition: {x: -12, y: -5, z: -30}
+  m_LocalScale: {x: 76, y: 37, z: 131}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -719,3 +751,4 @@ SceneRoots:
   - {fileID: 1211825772}
   - {fileID: 1077029079}
   - {fileID: 2142298864}
+  - {fileID: 17687283}

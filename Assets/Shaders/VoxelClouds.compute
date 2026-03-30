@@ -89,13 +89,16 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     
     if (voxelData.Clouds == false)
         return 0.0;
+    else
+        return saturate(1.0 * GlobalDensity);
     
     float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords);
     float dist = distance(inSamplePosition, voxelCenter);
-    float cloud = Remap(dist, 0.0, SQUARE_ROOT_3_DIV_2 * _VoxelSize, 1.0, 0.0);
+    // float cloud = Remap(dist, 0.0, _VoxelSize * 0.5, 1.0, 0.0);
+    float cloud = Remap(dist, 0.0, SQUARE_ROOT_3_DIV_2 * _VoxelSize * 0.5, 1.0, 0.0);
     
     return saturate(cloud * GlobalDensity);
-}
+}   
 
 static const float3 NOISE_KERNEL[6] =
 {

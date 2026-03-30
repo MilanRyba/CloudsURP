@@ -19,12 +19,12 @@ MonoBehaviour:
     WorldExtents: {x: 256, y: 32, z: 256}
     WorldOffset: {x: 0, y: 0, z: 0}
     VoxelSize: 2
-    Visualization: 1
+    Visualization: 3
   m_VoxelCloudsPassSettings:
-    NumSteps: 128
+    NumSteps: 256
     LargeStepSizeMultiplier: 3
     UseJitter: 1
-    GlobalDensity: 0.021
+    GlobalDensity: 0.054
     Eccentricity: 0.65
     SilverIntensity: 0.95
     SilverSpread: 1
@@ -35,11 +35,13 @@ MonoBehaviour:
   m_SimulationPassSettings:
     CloudSpeed: 1
     Ellipsoids:
-    - Position: {x: 62, y: 0, z: 78, w: 0}
-      Scale: {x: 44, y: 20, z: 76, w: 0}
-    - Position: {x: 0, y: 0, z: 0, w: 0}
-      Scale: {x: 73, y: 14, z: 45, w: 0}
-    TimeBetweenUpdates: 0.5
+    - Position: {x: 62, y: 4, z: 78, w: 0}
+      Scale: {x: 100, y: 37, z: 76, w: 0}
+    - Position: {x: -12, y: 5, z: -30, w: 0}
+      Scale: {x: 76, y: 37, z: 131, w: 0}
+    - Position: {x: -33, y: -5, z: -17, w: 0}
+      Scale: {x: 76, y: 31, z: 102, w: 0}
+    TimeBetweenUpdates: 0.2
 --- !u!114 &-7801735191280408724
 MonoBehaviour:
   m_ObjectHideFlags: 0
