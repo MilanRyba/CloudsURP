@@ -120,6 +120,9 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 		[Range(0.0f, 1.0f)]
 		public float GlobalDensity = 0.021f;
 
+		[Range(0.1f, 1.5f)]
+		public float MetaballRadius = 1.25f;
+
 
 		[Header("Phase")]
 
@@ -292,6 +295,8 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowEarlyExit", m_Settings.ShowEarlyExit ? 1 : 0);
 					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowTextures", m_Settings.ShowTextures ? 1 : 0);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Slice", m_Settings.Slice);
+
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "_MetaballRadius", m_Settings.MetaballRadius * m_Common.VoxelSize);
 
 					m_Common.SetCommonParams(inCtx, m_Shader);
 

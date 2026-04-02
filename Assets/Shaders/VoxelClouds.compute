@@ -50,6 +50,8 @@ float Slice;
 
 static bool EarlyExit = false;
 
+float _MetaballRadius;
+
 struct CloudRenderingGlobalInfo
 {
     float3 mCameraPosition;
@@ -80,24 +82,46 @@ float GetHeightFractionForPoint(float3 inPosition)
     return InverseLerp(inPosition.y, bottomY, topY);
 }
 
-#define SQUARE_ROOT_3_DIV_2 0.8660254
+float MetaballAttenuation(float inDistancFromCenter)
+{
+    if (inDistancFromCenter > _MetaballRadius)
+        return 0.0;
+    
+    const float a = -(4.0  / 9.0);
+    const float b =  (17.0 / 9.0);
+    const float c = -(22.0 / 9.0);
+    float distanceFactor = inDistancFromCenter / _MetaballRadius;
+    
+    return a * pow(distanceFactor, 6.0) + b * pow(distanceFactor, 4.0) + c * pow(distanceFactor, 2.0) + 1.0;
+}
 
 float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipLevel)
 {
-    int3 voxelCoords = VoxelCoordsFromWorldPosition(inSamplePosition);
-    CloudVoxelData voxelData = UnpackVoxel(CloudAutomaton[voxelCoords]);
+    int3 ogVoxelCoords = VoxelCoordsFromWorldPosition(inSamplePosition);
     
-    if (voxelData.Clouds == false)
-        return 0.0;
-    else
-        return saturate(1.0 * GlobalDensity);
+    int lookUpDistance = 1;
+    float density = 0.0;
     
-    float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords);
-    float dist = distance(inSamplePosition, voxelCenter);
-    // float cloud = Remap(dist, 0.0, _VoxelSize * 0.5, 1.0, 0.0);
-    float cloud = Remap(dist, 0.0, SQUARE_ROOT_3_DIV_2 * _VoxelSize * 0.5, 1.0, 0.0);
+    for (int z = -lookUpDistance; z < lookUpDistance; z++)
+    {
+        for (int y = -lookUpDistance; y < lookUpDistance; y++)
+        {
+            for (int x = -lookUpDistance; x < lookUpDistance; x++)
+            {
+                int3 voxelCoords = ogVoxelCoords + int3(x, y, z);
+                CloudVoxelData voxelData = UnpackVoxel(CloudAutomaton[voxelCoords]);
+                
+                if (voxelData.Clouds == false)
+                    continue;
+                
+                float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords);
+                float distanceFromCenter = distance(voxelCenter, inSamplePosition);
+                density += MetaballAttenuation(distanceFromCenter);
+            }
+        }
+    }
     
-    return saturate(cloud * GlobalDensity);
+    return saturate(density * GlobalDensity);
 }   
 
 static const float3 NOISE_KERNEL[6] =

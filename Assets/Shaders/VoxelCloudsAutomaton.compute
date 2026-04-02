@@ -63,7 +63,7 @@ float GetExtinctionProbability(int3 inVoxelCoords)
         return 0.9; // High clouds extiction outside the sphere
     
     // Increase extinction probability (a little bit) towards the edges
-    return lerp(0.001, 0.1, d);
+    return lerp(0.005, 0.2, d);
 }
 
 float GetGenerationProbability(int3 inVoxelCoords)
@@ -72,8 +72,8 @@ float GetGenerationProbability(int3 inVoxelCoords)
     if (!SDScene(inVoxelCoords, d))
         return 0.001; // Low geration outside the sphere
     
-    // Increase extinction probability (a little bit) towards the edges
-    return lerp(0.15, 0.01, d);
+    // Decrease generation probability (a little bit) towards the edges
+    return lerp(0.15, 0.005, d);
 }
 
 // Transition Rules

@@ -16,15 +16,16 @@ MonoBehaviour:
   m_VoxelCloudsShader: {fileID: 7200000, guid: 5791b1bdb7a62dd4389dfabe7830416f, type: 3}
   m_SimulationShader: {fileID: 7200000, guid: d22698f12394b7e4eb9424e820834edd, type: 3}
   m_CommonSettings:
-    WorldExtents: {x: 256, y: 32, z: 256}
-    WorldOffset: {x: 0, y: 0, z: 0}
-    VoxelSize: 2
+    WorldExtents: {x: 4096, y: 512, z: 4096}
+    WorldOffset: {x: 0, y: 256, z: 0}
+    VoxelSize: 8
     Visualization: 3
   m_VoxelCloudsPassSettings:
-    NumSteps: 256
+    NumSteps: 128
     LargeStepSizeMultiplier: 3
     UseJitter: 1
-    GlobalDensity: 0.054
+    GlobalDensity: 0.067
+    MetaballRadius: 1.5
     Eccentricity: 0.65
     SilverIntensity: 0.95
     SilverSpread: 1
@@ -33,10 +34,10 @@ MonoBehaviour:
     ShowTextures: 0
     Slice: 0.5
   m_SimulationPassSettings:
-    CloudSpeed: 1
+    CloudSpeed: 0
     Ellipsoids:
-    - Position: {x: 62, y: 4, z: 78, w: 0}
-      Scale: {x: 100, y: 37, z: 76, w: 0}
+    - Position: {x: 670, y: 150, z: 900, w: 0}
+      Scale: {x: 700, y: 300, z: 750, w: 0}
     - Position: {x: -12, y: 5, z: -30, w: 0}
       Scale: {x: 76, y: 37, z: 131, w: 0}
     - Position: {x: -33, y: -5, z: -17, w: 0}
