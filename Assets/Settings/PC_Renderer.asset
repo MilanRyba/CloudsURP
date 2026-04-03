@@ -24,9 +24,9 @@ MonoBehaviour:
     NumSteps: 128
     LargeStepSizeMultiplier: 3
     UseJitter: 1
-    GlobalDensity: 0.067
-    MetaballRadius: 1.5
-    Eccentricity: 0.65
+    GlobalDensity: 0.018
+    MetaballRadius: 1.275
+    Eccentricity: 0.22
     SilverIntensity: 0.95
     SilverSpread: 1
     Brightness: 1
@@ -35,14 +35,11 @@ MonoBehaviour:
     Slice: 0.5
   m_SimulationPassSettings:
     CloudSpeed: 0
-    Ellipsoids:
-    - Position: {x: 670, y: 150, z: 900, w: 0}
-      Scale: {x: 700, y: 300, z: 750, w: 0}
-    - Position: {x: -12, y: 5, z: -30, w: 0}
-      Scale: {x: 76, y: 37, z: 131, w: 0}
-    - Position: {x: -33, y: -5, z: -17, w: 0}
-      Scale: {x: 76, y: 31, z: 102, w: 0}
-    TimeBetweenUpdates: 0.2
+    NumEllipsoids: 9
+    ScaleMean: 512
+    ScaleDeviation: 109.7
+    EllispoidSeed: 1
+    TimeBetweenUpdates: 1
 --- !u!114 &-7801735191280408724
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -82,15 +82,15 @@ float GetHeightFractionForPoint(float3 inPosition)
     return InverseLerp(inPosition.y, bottomY, topY);
 }
 
-float MetaballAttenuation(float inDistancFromCenter)
+float MetaballAttenuation(float inDistanceFromCenter)
 {
-    if (inDistancFromCenter > _MetaballRadius)
+    if (inDistanceFromCenter > _MetaballRadius)
         return 0.0;
     
     const float a = -(4.0  / 9.0);
     const float b =  (17.0 / 9.0);
     const float c = -(22.0 / 9.0);
-    float distanceFactor = inDistancFromCenter / _MetaballRadius;
+    float distanceFactor = inDistanceFromCenter / _MetaballRadius;
     
     return a * pow(distanceFactor, 6.0) + b * pow(distanceFactor, 4.0) + c * pow(distanceFactor, 2.0) + 1.0;
 }
@@ -114,7 +114,9 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
                 if (voxelData.Clouds == false)
                     continue;
                 
-                float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords);
+                // Still not sure why I need to add half of the voxel size.
+                // Presumably this moves the voxelCenter into voxel center... but it should already be there.
+                float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords) + _VoxelSize * 0.5;
                 float distanceFromCenter = distance(voxelCenter, inSamplePosition);
                 density += MetaballAttenuation(distanceFromCenter);
             }

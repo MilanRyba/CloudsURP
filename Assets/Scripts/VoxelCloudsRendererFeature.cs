@@ -22,6 +22,12 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 	{
 		public Vector4 Position;
 		public Vector4 Scale;
+
+		public Ellipsoid(Vector4 inPosition, Vector4 inScale)
+		{
+			Position = inPosition;
+			Scale = inScale;
+		}
 	}
 
 	public RTHandle GetCloudAutomaton() => m_SimulationPass?.CloudAutomaton;
@@ -159,8 +165,20 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 		[Min(0), Tooltip("How many units will each voxel move after a simulation step.")]
 		public int CloudSpeed = 1;
 
-		[Tooltip("Container for ellipsoids. These are used to define higher probability for cloud presence.")]
-		public Ellipsoid[] Ellipsoids;
+		// [Tooltip("Container for ellipsoids. These are used to define higher probability for cloud presence.")]
+		// public Ellipsoid[] Ellipsoids;
+
+		[Range(1, 100)]
+		public int NumEllipsoids = 10;
+
+		[Range(1.0f, 512.0f)]
+		public float ScaleMean = 64.0f;
+
+		[Range(0.0f, 128.0f)]
+		public float ScaleDeviation = 32.0f;
+
+		[Min(1)]
+		public int EllispoidSeed = 1;
 
 		[Range(0.0f, 2.0f), Tooltip("Number of second between each simulation step.")]
 		public float TimeBetweenUpdates = 0.5f;
@@ -340,7 +358,9 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 			m_Common = inCommon;
             m_Settings = inSettings;
             renderPassEvent = RenderPassEvent.BeforeRendering;
-        }
+
+			CreateEllipsoids();
+		}
 
 		public void Setup(ComputeShader inShader)
 		{
@@ -353,14 +373,39 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 			// Re-create automatons if needed
 			GraphicsHelper.CreateAutomaton(ref m_TextureCurrent, m_Common.VoxelGridResolutionInt, "_Automaton1");
 			GraphicsHelper.CreateAutomaton(ref m_TextureNext, m_Common.VoxelGridResolutionInt, "_Automaton2");
+		}
 
-			int numEllipsoids = m_Settings.Ellipsoids.Length;
-			if (m_EllipsoidsBuffer == null || m_EllipsoidsBuffer.count != numEllipsoids)
+		private Vector3 GetRandomVector3(Vector3 inMinInclusive, Vector3 inMaxInclusive)
+		{
+			float x = UnityEngine.Random.Range(inMinInclusive.x, inMaxInclusive.x);
+			float y = UnityEngine.Random.Range(inMinInclusive.y, inMaxInclusive.y);
+			float z = UnityEngine.Random.Range(inMinInclusive.z, inMaxInclusive.z);
+			return new Vector3(x, y, z);
+		}
+
+		private void CreateEllipsoids()
+		{
+			UnityEngine.Random.InitState(m_Settings.EllispoidSeed);
+			Vector3 voxelBoundsMin = m_Common.VoxelGridOrigin;
+			Vector3 voxelBoundsMax = m_Common.VoxelGridOrigin + m_Common.VoxelGridResolution * m_Common.VoxelSize;
+
+			float scaleXZMin = m_Settings.ScaleMean - m_Settings.ScaleDeviation;
+			float scaleXZMax = m_Settings.ScaleMean + m_Settings.ScaleDeviation;
+			Vector3 scaleMin = new Vector3(scaleXZMin, scaleXZMin * 0.5f, scaleXZMin);
+			Vector3 scaleMax = new Vector3(scaleXZMax, scaleXZMax * 0.5f, scaleXZMax);
+
+			Ellipsoid[] ellipsoids = new Ellipsoid[m_Settings.NumEllipsoids];
+			for (int i = 0; i < m_Settings.NumEllipsoids; i++)
+			{
+				ellipsoids[i] = new Ellipsoid(GetRandomVector3(voxelBoundsMin * 0.65f, voxelBoundsMax * 0.65f), GetRandomVector3(scaleMin, scaleMax));
+			}
+
+			if (m_EllipsoidsBuffer == null || m_EllipsoidsBuffer.count != m_Settings.NumEllipsoids)
 			{
 				m_EllipsoidsBuffer?.Release();
-				m_EllipsoidsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, numEllipsoids, GraphicsHelper.GetStride<Ellipsoid>());
+				m_EllipsoidsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, m_Settings.NumEllipsoids, GraphicsHelper.GetStride<Ellipsoid>());
 			}
-			m_EllipsoidsBuffer.SetData(m_Settings.Ellipsoids);
+			m_EllipsoidsBuffer.SetData(ellipsoids);
 		}
 
 		private class PassData

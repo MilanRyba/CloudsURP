@@ -30,7 +30,10 @@ float GetRandom01(int3 inVoxelCoords)
 
 bool SDScene(int3 inVoxelCoords, out float outDistance)
 {
-    float3 posWS = WorldPositionFromVoxelCoords(inVoxelCoords);
+    float3 posWS = WorldPositionFromVoxelCoords(inVoxelCoords) - 4.0;
+
+    outDistance = 100;
+    bool inside = false;
     for (int i = 0; i < _NumEllipsoids; i++)
     {
         Ellipsoid e = _Ellipsoids[i];
@@ -45,15 +48,17 @@ bool SDScene(int3 inVoxelCoords, out float outDistance)
             float result = pow((posWS.x - e.Position.x) / e.Scale.x, 2) +
                            pow((posWS.y - e.Position.y) / e.Scale.y, 2) +
                            pow((posWS.z - e.Position.z) / e.Scale.z, 2);
-            if (result <= 1)
+            
+            // Inside the ellipsoid and the new distance is closer
+            if (result <= 1 && result < outDistance)
             {
-                // Inside the ellipsoid
                 outDistance = result;
-                return true;
+                inside = true;
             }
         }
     }
-    return false;
+    
+    return inside;
 }
 
 float GetExtinctionProbability(int3 inVoxelCoords)
