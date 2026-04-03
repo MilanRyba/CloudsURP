@@ -1,6 +1,7 @@
 using Helpers;
 using System;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
@@ -30,7 +31,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 		}
 	}
 
-	public RTHandle GetCloudAutomaton() => m_SimulationPass?.CloudAutomaton;
+	public RTHandle GetSmoothDensity() => m_SimulationPass?.SmoothDensity;
 
 	// Unity calls this method on the following events:
 	//   - When the Renderer Feature loads the first time.
@@ -40,7 +41,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 	public override void Create()
     {
 		m_VoxelCloudsPass = new VoxelCloudsPass(m_CommonSettings, m_VoxelCloudsPassSettings);
-        m_SimulationPass = new SimulationPass(m_CommonSettings, m_SimulationPassSettings);
+        m_SimulationPass = new SimulationPass(m_SimulationShader, m_CommonSettings, m_SimulationPassSettings);
 
 		Debug.Log("Created VoxelCloudsRendererFeature.");
     }
@@ -53,7 +54,6 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 		}
 		else
 		{
-			m_SimulationPass.Setup(m_SimulationShader);
 			renderer.EnqueuePass(m_SimulationPass);
 		}
 
@@ -63,7 +63,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 		}
 		else
 		{
-			m_VoxelCloudsPass.Setup(m_VoxelCloudsShader, GetCloudAutomaton());
+			m_VoxelCloudsPass.Setup(m_VoxelCloudsShader, GetSmoothDensity());
 			renderer.EnqueuePass(m_VoxelCloudsPass);
 		}
 	}
@@ -126,7 +126,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 		[Range(0.0f, 1.0f)]
 		public float GlobalDensity = 0.021f;
 
-		[Range(0.1f, 1.5f)]
+		[Range(0.5f, 2.5f)]
 		public float MetaballRadius = 1.25f;
 
 
@@ -165,9 +165,6 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 		[Min(0), Tooltip("How many units will each voxel move after a simulation step.")]
 		public int CloudSpeed = 1;
 
-		// [Tooltip("Container for ellipsoids. These are used to define higher probability for cloud presence.")]
-		// public Ellipsoid[] Ellipsoids;
-
 		[Range(1, 100)]
 		public int NumEllipsoids = 10;
 
@@ -193,7 +190,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 		ComputeShader m_Shader;
 		int m_Kernel;
 
-		RTHandle m_CloudAutomaton;
+		RTHandle m_SmoothDensity;
 
 		readonly CommonVoxelCloudsSettings m_Common;
 		readonly VoxelCloudsPassSettings m_Settings;
@@ -211,12 +208,12 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 			renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
 		}
 
-		public void Setup(ComputeShader inShader, RTHandle inCloudAutomaton)
+		public void Setup(ComputeShader inShader, RTHandle inSmoothDensity)
 		{
 			m_Shader = inShader;
 			m_Kernel = m_Shader.FindKernel("CSMain");
 
-			m_CloudAutomaton = inCloudAutomaton;
+			m_SmoothDensity = inSmoothDensity;
 
 			requiresIntermediateTexture = true;
 		}
@@ -233,7 +230,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 			public Color SunColor;
 
 			// Textures
-			public TextureHandle CloudAutomaton;
+			public TextureHandle SmoothDensity;
 			public TextureHandle SceneTexture;
 			public TextureHandle DepthTexture;
 			public TextureHandle Output;
@@ -275,12 +272,12 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 				data.Output = destination;
 				data.SceneTexture = source;
 				data.DepthTexture = resourceData.activeDepthTexture;
-				data.CloudAutomaton = renderGraph.ImportTexture(m_CloudAutomaton);
+				data.SmoothDensity = renderGraph.ImportTexture(m_SmoothDensity);
 
 				builder.UseTexture(destination, AccessFlags.Write);
 				builder.UseTexture(source, AccessFlags.Read);
 				builder.UseTexture(data.DepthTexture, AccessFlags.Read);
-				builder.UseTexture(data.CloudAutomaton, AccessFlags.Read);
+				builder.UseTexture(data.SmoothDensity, AccessFlags.Read);
 
 				builder.SetRenderFunc((PassData inD, ComputeGraphContext inCtx) =>
 				{
@@ -305,7 +302,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 					
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Brightness", m_Settings.Brightness);
 
-					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CloudAutomaton", inD.CloudAutomaton);
+					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "SmoothDensity", inD.SmoothDensity);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "SceneTexture", inD.SceneTexture);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "DepthTexture", inD.DepthTexture);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "Output", inD.Output);
@@ -336,10 +333,12 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 
         ComputeShader m_Shader;
         int m_KernelSimulation;
-        int m_KernelReset;
+        int m_KernelSmoothDensity;
 
 		RTHandle m_TextureCurrent;
 		RTHandle m_TextureNext;
+
+		RTHandle m_SmoothDensity;
 
 		GraphicsBuffer m_EllipsoidsBuffer;
 
@@ -351,28 +350,30 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 
 		#endregion
 
-		public RTHandle CloudAutomaton => m_TextureCurrent;
+		public RTHandle SmoothDensity => m_SmoothDensity;
 
-		public SimulationPass(CommonVoxelCloudsSettings inCommon, SimulationPassSettings inSettings)
+		public SimulationPass(ComputeShader inShader, CommonVoxelCloudsSettings inCommon, SimulationPassSettings inSettings)
         {
 			m_Common = inCommon;
             m_Settings = inSettings;
             renderPassEvent = RenderPassEvent.BeforeRendering;
 
-			CreateEllipsoids();
-		}
-
-		public void Setup(ComputeShader inShader)
-		{
 			m_Shader = inShader;
 
-            // Find kernels
+			// Find kernels
 			m_KernelSimulation = m_Shader.FindKernel("SimulationCS");
-            m_KernelReset = m_Shader.FindKernel("ResetCS");
+			m_KernelSmoothDensity = m_Shader.FindKernel("SmoothDensityCS");
 
-			// Re-create automatons if needed
+			// Create automatons and textures
 			GraphicsHelper.CreateAutomaton(ref m_TextureCurrent, m_Common.VoxelGridResolutionInt, "_Automaton1");
 			GraphicsHelper.CreateAutomaton(ref m_TextureNext, m_Common.VoxelGridResolutionInt, "_Automaton2");
+
+			var desc = new RenderTextureDescriptor(m_Common.NumVoxelsX, m_Common.NumVoxelsY, GraphicsFormat.R16_UNorm, 0);
+			desc.volumeDepth = m_Common.NumVoxelsZ;
+			desc.useMipMap = false;
+			GraphicsHelper.CreateWriteable3D(ref m_SmoothDensity, desc, "_SmoothDensity");
+
+			CreateEllipsoids();
 		}
 
 		private Vector3 GetRandomVector3(Vector3 inMinInclusive, Vector3 inMaxInclusive)
@@ -391,8 +392,8 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 
 			float scaleXZMin = m_Settings.ScaleMean - m_Settings.ScaleDeviation;
 			float scaleXZMax = m_Settings.ScaleMean + m_Settings.ScaleDeviation;
-			Vector3 scaleMin = new Vector3(scaleXZMin, scaleXZMin * 0.5f, scaleXZMin);
-			Vector3 scaleMax = new Vector3(scaleXZMax, scaleXZMax * 0.5f, scaleXZMax);
+			Vector3 scaleMin = new Vector3(scaleXZMin, scaleXZMin * 0.25f, scaleXZMin);
+			Vector3 scaleMax = new Vector3(scaleXZMax, scaleXZMax * 0.25f, scaleXZMax);
 
 			Ellipsoid[] ellipsoids = new Ellipsoid[m_Settings.NumEllipsoids];
 			for (int i = 0; i < m_Settings.NumEllipsoids; i++)
@@ -414,7 +415,8 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 			public int Kernel;                   // Kernel index
 			public TextureHandle AutomatonFrom;  // Input texture
 			public TextureHandle AutomatonTo;    // Output texture
-			public BufferHandle Ellipsoids;
+			public BufferHandle EllipsoidsBuffer;
+			public TextureHandle SmoothDensity;
 		}
 
 		private void SwapAutomatons()
@@ -429,6 +431,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 			TextureHandle current = graph.ImportTexture(m_TextureCurrent);
 			TextureHandle next = graph.ImportTexture(m_TextureNext);
 			BufferHandle ellipsoidsBuffer = graph.ImportBuffer(m_EllipsoidsBuffer);
+			TextureHandle smoothDensity = graph.ImportTexture(m_SmoothDensity);
 
 			m_TimeSinceLastUpdate += Time.deltaTime;
 			if (m_TimeSinceLastUpdate >= m_Settings.TimeBetweenUpdates)
@@ -445,18 +448,18 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 					data.Kernel = m_KernelSimulation;
 					data.AutomatonFrom = current;
 					data.AutomatonTo = next;
-					data.Ellipsoids = ellipsoidsBuffer;
+					data.EllipsoidsBuffer = ellipsoidsBuffer;
 
 					builder.UseTexture(data.AutomatonFrom, AccessFlags.Read);
 					builder.UseTexture(data.AutomatonTo, AccessFlags.Write);
-					builder.UseBuffer(data.Ellipsoids, AccessFlags.Read);
+					builder.UseBuffer(data.EllipsoidsBuffer, AccessFlags.Read);
 
 					builder.SetRenderFunc((PassData inD, ComputeGraphContext inCtx) =>
 					{
 						inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "_AutomatonFrom", inD.AutomatonFrom);
 						inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "_AutomatonTo", inD.AutomatonTo);
 
-						inCtx.cmd.SetComputeBufferParam(inD.Shader, inD.Kernel, "_Ellipsoids", inD.Ellipsoids);
+						inCtx.cmd.SetComputeBufferParam(inD.Shader, inD.Kernel, "_Ellipsoids", inD.EllipsoidsBuffer);
 						m_Shader.SetInt("_NumEllipsoids", m_EllipsoidsBuffer.count);
 
 						m_Common.SetCommonParams(inCtx, inD.Shader);
@@ -470,6 +473,36 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 					});
 				}
 				SwapAutomatons();
+
+				// Smooth out the discrete density
+				using (IComputeRenderGraphBuilder builder = graph.AddComputePass("Smooth Density Pass", out PassData data))
+				{
+					data.Shader = m_Shader;
+					data.Kernel = m_KernelSmoothDensity;
+					data.AutomatonFrom = next;
+					data.AutomatonTo = current;
+					data.SmoothDensity = smoothDensity;
+
+					builder.UseTexture(data.AutomatonFrom, AccessFlags.Read);
+					builder.UseTexture(data.AutomatonTo, AccessFlags.Read);
+					builder.UseTexture(data.SmoothDensity, AccessFlags.Write);
+
+					builder.SetRenderFunc((PassData inD, ComputeGraphContext inCtx) =>
+					{
+						inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "_AutomatonFrom", inD.AutomatonFrom);
+						inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "_AutomatonTo", inD.AutomatonTo);
+						inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "_SmoothDensity", inD.SmoothDensity);
+
+						m_Common.SetCommonParams(inCtx, inD.Shader);
+
+						// inCtx.cmd.SetComputeIntParam(inD.Shader, "_Volume", m_Common.Volume);
+						// inCtx.cmd.SetComputeIntParam(inD.Shader, "_CloudSpeed", m_Settings.CloudSpeed);
+						// inCtx.cmd.SetComputeIntParam(inD.Shader, "_CloudOffset", m_CloudOffset);
+						// inCtx.cmd.SetComputeIntParam(inD.Shader, "_Seed", UnityEngine.Random.Range(300, 1000));
+
+						GraphicsHelper.Dispatch(inCtx, inD.Shader, inD.Kernel, m_Common.VoxelGridResolutionInt);
+					});
+				}
 			}
         }
 

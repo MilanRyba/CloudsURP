@@ -34,7 +34,7 @@ float SilverSpread;
 
 float Brightness;
 
-Texture3D<uint> CloudAutomaton;
+Texture3D<float> SmoothDensity;
 Texture2D SceneTexture;
 Texture2D DepthTexture;
 RWTexture2D<float4> Output;
@@ -100,25 +100,24 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     int3 ogVoxelCoords = VoxelCoordsFromWorldPosition(inSamplePosition);
     
     int lookUpDistance = 1;
+    
     float density = 0.0;
     
-    for (int z = -lookUpDistance; z < lookUpDistance; z++)
+    for (int z = -lookUpDistance; z <= lookUpDistance; z++)
     {
-        for (int y = -lookUpDistance; y < lookUpDistance; y++)
+        for (int y = -lookUpDistance; y <= lookUpDistance; y++)
         {
-            for (int x = -lookUpDistance; x < lookUpDistance; x++)
+            for (int x = -lookUpDistance; x <= lookUpDistance; x++)
             {
                 int3 voxelCoords = ogVoxelCoords + int3(x, y, z);
-                CloudVoxelData voxelData = UnpackVoxel(CloudAutomaton[voxelCoords]);
+                float sampledDensity = SmoothDensity[voxelCoords];
                 
-                if (voxelData.Clouds == false)
+                if (sampledDensity == 0.0)
                     continue;
                 
-                // Still not sure why I need to add half of the voxel size.
-                // Presumably this moves the voxelCenter into voxel center... but it should already be there.
-                float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords) + _VoxelSize * 0.5;
+                float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords);
                 float distanceFromCenter = distance(voxelCenter, inSamplePosition);
-                density += MetaballAttenuation(distanceFromCenter);
+                density += sampledDensity * MetaballAttenuation(distanceFromCenter);
             }
         }
     }
@@ -169,8 +168,8 @@ float GetLightEnergy(float inHeightFraction, float inDensityLight, float inDensi
     float attenuationProbability = max(Remap(inCosAngle, 0.7, 1.0, secondaryAttenuation, secondaryAttenuation * 0.25), primaryAttenuation);
     
     // In-scattering
-    float depthProbability = lerp(0.1 + pow(inDensity, Remap(inHeightFraction, 0.3, 0.85, 0.5, 2.0)), 1.0, saturate(inDensityLight / inStepSize));
-    float verticalProbability = Remap(inHeightFraction, 0.07, 0.14, 0.1, 1.0) * 0.9;
+    float depthProbability = lerp(0.05 + pow(inDensity, Remap(inHeightFraction, 0.3, 0.85, 0.5, 2.0)), 1.0, saturate(inDensityLight / inStepSize));
+    float verticalProbability = Remap(inHeightFraction, 0.07, 0.14, 0.1, 1.0) * 0.5;
     float inScatterProbability = depthProbability * verticalProbability;
     
     float lightEnergy = attenuationProbability * inScatterProbability * inPhaseProbability * inBrightness;
@@ -278,9 +277,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
             float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            int3 voxelCoords = pos * _VoxelGridResolution;
-            CloudVoxelData data = UnpackVoxel(CloudAutomaton[voxelCoords]);
-            Output[id.xy] = ColorFromVoxelVisualization(data);
+            Output[id.xy] = SmoothDensity.SampleLevel(sLinearRepeat, pos, 0);
             return;
         }
     }

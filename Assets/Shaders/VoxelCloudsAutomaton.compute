@@ -1,5 +1,5 @@
 #pragma kernel SimulationCS
-#pragma kernel ResetCS
+#pragma kernel SmoothDensityCS
 #pragma kernel PositionsCS
 
 #include "VoxelCloudsCommon.hlsl"
@@ -9,6 +9,8 @@ Texture3D<uint> _AutomatonFrom;
 RWTexture3D<uint> _AutomatonTo;
 
 RWStructuredBuffer<float3> _Positions;
+
+RWTexture3D<float> _SmoothDensity;
 
 struct Ellipsoid
 {
@@ -160,17 +162,33 @@ void SimulationCS(uint3 inVoxelCoords : SV_DispatchThreadID)
 }
 
 [numthreads(4, 4, 4)]
-void ResetCS(uint3 inVoxelCoords : SV_DispatchThreadID)
+void SmoothDensityCS(uint3 inVoxelCoords : SV_DispatchThreadID)
 {
     int3 vCoords = inVoxelCoords;
     if (OutOfBoundsVoxelCoords(vCoords))
         return;
     
-    CloudVoxelData voxelData;
-    voxelData.Humidity = GetRandom01(vCoords) < 0.25;
-    voxelData.Clouds = false;
-    voxelData.Activation = GetRandom01(vCoords) < 0.1;
-    _AutomatonTo[vCoords] = PackVoxel(voxelData);
+    int3 smoothSizes = int3(1, 1, 1);
+    float density = 0.0;
+    
+    for (int z = -smoothSizes.z; z <= smoothSizes.z; z++)
+    {
+        for (int y = -smoothSizes.y; y <= smoothSizes.y; y++)
+        {
+            for (int x = -smoothSizes.x; x <= smoothSizes.x; x++)
+            {
+                int3 voxelCoords = vCoords + int3(x, y, z);
+                CloudVoxelData voxelData = UnpackVoxel(_AutomatonFrom[voxelCoords]);
+                CloudVoxelData voxelDataOld = UnpackVoxel(_AutomatonTo[voxelCoords]);
+                density += voxelData.Clouds ? 1.0 : 0.0;
+                density += voxelDataOld.Clouds ? 1.0 : 0.0;
+            }
+        }
+    }
+    
+    smoothSizes = smoothSizes * 2.0 + 1.0;
+    float normalizationFactor = 1.0 / (smoothSizes.x * smoothSizes.y * smoothSizes.z * 2.0);
+    _SmoothDensity[vCoords] = normalizationFactor * density;
 }
 
 [numthreads(4, 4, 4)]
@@ -197,3 +215,5 @@ void PositionsCS(uint3 inVoxelCoords : SV_DispatchThreadID)
     else
         _Positions[idx] = -220;
 }
+
+

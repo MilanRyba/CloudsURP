@@ -156,6 +156,29 @@ namespace Helpers
 			}
 		}
 
+		// Create a 3D texture usable for writing in a compute shader.
+		// In the inDescriptor parameter specify [width - height - volumeDepth - graphicsFormat - useMipMap], 
+		// the rest is set accordingly.
+		public static void CreateWriteable3D(ref RTHandle outHandle, RenderTextureDescriptor inDescriptor, string inName)
+		{
+			if (outHandle == null ||
+				outHandle.rt.width != inDescriptor.width ||
+				outHandle.rt.height != inDescriptor.height ||
+				outHandle.rt.volumeDepth != inDescriptor.volumeDepth)
+			{
+				Release(outHandle);
+
+				inDescriptor.dimension = TextureDimension.Tex3D;
+				inDescriptor.enableRandomWrite = true;
+				inDescriptor.autoGenerateMips = false;
+				// inDescriptor.depthBufferBits = 0;
+				inDescriptor.msaaSamples = 1;
+				inDescriptor.sRGB = false;
+
+				outHandle = RTHandles.Alloc(inDescriptor, name: inName);
+			}
+		}
+
 		public static void CreateAutomaton(ref RTHandle outHandle, Vector3Int inDimensions, string inName)
 		{
 			if (outHandle == null ||
