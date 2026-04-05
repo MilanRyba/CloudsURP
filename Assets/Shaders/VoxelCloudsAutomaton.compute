@@ -45,7 +45,7 @@ bool SDScene(int3 inVoxelCoords, out float outDistance)
 			posWS.y > (e.Position.y - e.Scale.y) && posWS.y < (e.Position.y + e.Scale.y) &&
 			posWS.z > (e.Position.z - e.Scale.z) && posWS.z < (e.Position.z + e.Scale.z))
         {
-            // 1 =  on the edge, 0 = centre
+            // 1 =  on the edge, 0 = center
 			// (x/a)2 + (y/b)2 + (z/c)2 = 1 general equation for ellipsoid
             float result = pow((posWS.x - e.Position.x) / e.Scale.x, 2) +
                            pow((posWS.y - e.Position.y) / e.Scale.y, 2) +
@@ -63,24 +63,23 @@ bool SDScene(int3 inVoxelCoords, out float outDistance)
     return inside;
 }
 
-float GetExtinctionProbability(int3 inVoxelCoords)
+void GetCloudProbabilities(int3 inVoxelCoords, out float outProbabilityExtinction, out float outProbabilityGeneration)
 {
     float d;
     if (!SDScene(inVoxelCoords, d))
-        return 0.9; // High clouds extiction outside the sphere
+    {
+        outProbabilityExtinction = 0.9; // High clouds extiction outside the sphere
+        outProbabilityGeneration = 0.0; // No geration outside the sphere
+        return;
+    }
     
     // Increase extinction probability (a little bit) towards the edges
-    return lerp(0.005, 0.2, d);
-}
-
-float GetGenerationProbability(int3 inVoxelCoords)
-{
-    float d;
-    if (!SDScene(inVoxelCoords, d))
-        return 0.0; // Low geration outside the sphere
+    outProbabilityExtinction = lerp(0.005, 0.2, d);
     
     // Decrease generation probability (a little bit) towards the edges
-    return lerp(0.15, 0.005, d);
+    outProbabilityGeneration = lerp(0.15, 0.005, d);
+    
+    return;
 }
 
 // Transition Rules
@@ -120,8 +119,9 @@ void DoExtinction(int3 inVoxelCoords, inout CloudVoxelData ioData)
 {
     float rnd = GetRandom01(inVoxelCoords);
     
-    float extinctionProb = GetExtinctionProbability(inVoxelCoords);
-    float generationProb = GetGenerationProbability(inVoxelCoords);
+    float extinctionProb;
+    float generationProb;
+    GetCloudProbabilities(inVoxelCoords, extinctionProb, generationProb);
     
     // The ioData is actually the already transitioned voxels. The reason being...
     // If Clouds = 0 in the original CloudVoxelData, then Clouds in the new CloudVoxelData would never be set to 1.
