@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b6ba738392fc4f34db818b3a3503231d, type: 3}
   m_Name: VoxelCloudsRendererFeature
   m_EditorClassIdentifier: Assembly-CSharp::VoxelCloudsRendererFeature
-  m_Active: 0
+  m_Active: 1
   m_VoxelCloudsShader: {fileID: 7200000, guid: 5791b1bdb7a62dd4389dfabe7830416f, type: 3}
   m_SimulationShader: {fileID: 7200000, guid: d22698f12394b7e4eb9424e820834edd, type: 3}
   m_CommonSettings:
@@ -25,7 +25,7 @@ MonoBehaviour:
     LargeStepSizeMultiplier: 3
     UseJitter: 1
     GlobalDensity: 0.3
-    MetaballRadius: 1.42
+    MetaballRadius: 1.47
     Eccentricity: 0.22
     SilverIntensity: 0.95
     SilverSpread: 1
@@ -35,11 +35,11 @@ MonoBehaviour:
     Slice: 0.326
   m_SimulationPassSettings:
     CloudSpeed: 0
-    NumEllipsoids: 34
+    NumEllipsoids: 33
     ScaleMean: 218
     ScaleDeviation: 56.3
     EllispoidSeed: 32
-    TimeBetweenUpdates: 0
+    TimeBetweenUpdates: 0.2
 --- !u!114 &-7801735191280408724
 MonoBehaviour:
   m_ObjectHideFlags: 0

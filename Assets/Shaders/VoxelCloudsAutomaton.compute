@@ -1,6 +1,5 @@
 #pragma kernel SimulationCS
 #pragma kernel SmoothDensityCS
-#pragma kernel PositionsCS
 
 #include "VoxelCloudsCommon.hlsl"
 #include "Common.hlsl"
@@ -190,30 +189,3 @@ void SmoothDensityCS(uint3 inVoxelCoords : SV_DispatchThreadID)
     float normalizationFactor = 1.0 / (smoothSizes.x * smoothSizes.y * smoothSizes.z * 2.0);
     _SmoothDensity[vCoords] = normalizationFactor * density;
 }
-
-[numthreads(4, 4, 4)]
-void PositionsCS(uint3 inVoxelCoords : SV_DispatchThreadID)
-{
-    int3 vCoords = inVoxelCoords;
-    if (OutOfBoundsVoxelCoords(vCoords))
-        return;
-    
-    uint voxel = _AutomatonFrom[vCoords];
-    CloudVoxelData voxelData = UnpackVoxel(voxel);
-    
-    bool assertion = false;
-    if (_Visualization == 0)
-        assertion = voxelData.Humidity;
-    else if (_Visualization == 1)
-        assertion = voxelData.Clouds;
-    else if (_Visualization == 2)
-        assertion = voxelData.Activation;
-    
-    int idx = IdxFromVoxelCoords(vCoords);
-    if (assertion)
-        _Positions[idx] = WorldPositionFromVoxelCoords(vCoords);
-    else
-        _Positions[idx] = -220;
-}
-
-
