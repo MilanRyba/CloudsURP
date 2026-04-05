@@ -1,10 +1,10 @@
 ﻿#pragma once
 
 //==============================
-// Voxel Byte Layout - 0000 0HCA
-//   H = Humidity
-//   C = Clouds
-//   A = Activation
+// Voxel Layout
+//   X = Humidity
+//   Y = Clouds
+//   Z = Activation
 //==============================
 
 struct CloudVoxelData
@@ -26,32 +26,6 @@ void PackVoxel(CloudVoxelData inData, int inBitIdx, inout uint4 ioVoxels)
     ioVoxels.x |= inData.Humidity   ? 1 << inBitIdx : 0;
     ioVoxels.y |= inData.Clouds     ? 1 << inBitIdx : 0;
     ioVoxels.z |= inData.Activation ? 1 << inBitIdx : 0;
-}
-
-uint _Visualization; // 0 = Humidity, 1 = Clouds, 2 = Activation, 3 = All
-
-float4 ColorFromVoxelVisualization(CloudVoxelData inData)
-{
-    bool assertion = false;
-    if (_Visualization == 0)
-        assertion = inData.Humidity;
-    else if (_Visualization == 1)
-        assertion = inData.Clouds;
-    else if (_Visualization == 2)
-        assertion = inData.Activation;
-    
-    if (assertion)
-        return 1.0;
-    else if (_Visualization == 3)
-    {
-        float4 color = 1.0;
-        color.r = inData.Humidity ? 1.0 : 0.0;
-        color.g = inData.Clouds ? 1.0 : 0.0;
-        color.b = inData.Activation ? 1.0 : 0.0;
-        return color;
-    }
-    else
-        return 0.0;
 }
 
 // +----------------------+     +-------------------+     +-------+
