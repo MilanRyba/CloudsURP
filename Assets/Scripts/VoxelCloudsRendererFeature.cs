@@ -392,8 +392,8 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 
 			float scaleXZMin = m_Settings.ScaleMean - m_Settings.ScaleDeviation;
 			float scaleXZMax = m_Settings.ScaleMean + m_Settings.ScaleDeviation;
-			Vector3 scaleMin = new Vector3(scaleXZMin, scaleXZMin * 0.25f, scaleXZMin);
-			Vector3 scaleMax = new Vector3(scaleXZMax, scaleXZMax * 0.25f, scaleXZMax);
+			Vector3 scaleMin = new Vector3(scaleXZMin, scaleXZMin * 0.5f, scaleXZMin);
+			Vector3 scaleMax = new Vector3(scaleXZMax, scaleXZMax * 0.5f, scaleXZMax);
 
 			Ellipsoid[] ellipsoids = new Ellipsoid[m_Settings.NumEllipsoids];
 			for (int i = 0; i < m_Settings.NumEllipsoids; i++)

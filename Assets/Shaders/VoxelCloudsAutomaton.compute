@@ -77,7 +77,7 @@ float GetGenerationProbability(int3 inVoxelCoords)
 {
     float d;
     if (!SDScene(inVoxelCoords, d))
-        return 0.001; // Low geration outside the sphere
+        return 0.0; // Low geration outside the sphere
     
     // Decrease generation probability (a little bit) towards the edges
     return lerp(0.15, 0.005, d);

@@ -38,7 +38,7 @@ MonoBehaviour:
     NumEllipsoids: 34
     ScaleMean: 218
     ScaleDeviation: 56.3
-    EllispoidSeed: 20
+    EllispoidSeed: 32
     TimeBetweenUpdates: 0
 --- !u!114 &-7801735191280408724
 MonoBehaviour:
