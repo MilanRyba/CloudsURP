@@ -171,7 +171,6 @@ namespace Helpers
 				inDescriptor.dimension = TextureDimension.Tex3D;
 				inDescriptor.enableRandomWrite = true;
 				inDescriptor.autoGenerateMips = false;
-				// inDescriptor.depthBufferBits = 0;
 				inDescriptor.msaaSamples = 1;
 				inDescriptor.sRGB = false;
 
@@ -188,7 +187,7 @@ namespace Helpers
 			{
 				Release(outHandle);
 
-				var desc = new RenderTextureDescriptor(inDimensions.x, inDimensions.y, GraphicsFormat.R8_UInt, 0)
+				var desc = new RenderTextureDescriptor(inDimensions.x, inDimensions.y, GraphicsFormat.R8G8B8A8_UInt, 0)
 				{
 					volumeDepth = inDimensions.z,
 					dimension = TextureDimension.Tex3D,

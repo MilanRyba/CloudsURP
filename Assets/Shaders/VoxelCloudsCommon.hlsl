@@ -14,22 +14,18 @@ struct CloudVoxelData
     bool Activation;
 };
 
-CloudVoxelData UnpackVoxel(uint inVoxel)
+void UnpackVoxel(uint4 inVoxels, int inBitIdx, out CloudVoxelData outVoxelData)
 {
-    CloudVoxelData voxelData;
-    voxelData.Humidity = (inVoxel & (1 << 2)) != 0;
-    voxelData.Clouds = (inVoxel & (1 << 1)) != 0;
-    voxelData.Activation = (inVoxel & (1 << 0)) != 0;
-    return voxelData;
+    outVoxelData.Humidity   = (inVoxels.x & (1 << inBitIdx)) != 0;
+    outVoxelData.Clouds     = (inVoxels.y & (1 << inBitIdx)) != 0;
+    outVoxelData.Activation = (inVoxels.z & (1 << inBitIdx)) != 0;
 }
 
-uint PackVoxel(CloudVoxelData inData)
+void PackVoxel(CloudVoxelData inData, int inBitIdx, inout uint4 ioVoxels)
 {
-    uint voxel = 0;
-    voxel |= inData.Humidity ? 1 << 2 : 0;
-    voxel |= inData.Clouds ? 1 << 1 : 0;
-    voxel |= inData.Activation ? 1 << 0 : 0;
-    return voxel;
+    ioVoxels.x |= inData.Humidity   ? 1 << inBitIdx : 0;
+    ioVoxels.y |= inData.Clouds     ? 1 << inBitIdx : 0;
+    ioVoxels.z |= inData.Activation ? 1 << inBitIdx : 0;
 }
 
 uint _Visualization; // 0 = Humidity, 1 = Clouds, 2 = Activation, 3 = All

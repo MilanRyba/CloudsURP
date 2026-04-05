@@ -4,8 +4,8 @@
 #include "VoxelCloudsCommon.hlsl"
 #include "Common.hlsl"
 
-Texture3D<uint> _AutomatonFrom;
-RWTexture3D<uint> _AutomatonTo;
+Texture3D<uint4> _AutomatonFrom;
+RWTexture3D<uint4> _AutomatonTo;
 
 RWStructuredBuffer<float3> _Positions;
 
@@ -81,6 +81,32 @@ void GetCloudProbabilities(int3 inVoxelCoords, out float outProbabilityExtinctio
     return;
 }
 
+CloudVoxelData GetVoxelData_From(int3 inVoxelCoords)
+{
+    int bitIdx = inVoxelCoords.y % 8;
+    int3 sampleCoords = inVoxelCoords;
+    sampleCoords.y = (sampleCoords.y - bitIdx) / 8;
+    
+    uint4 voxel8Pack = _AutomatonFrom[sampleCoords];
+    CloudVoxelData voxelData;
+
+    UnpackVoxel(voxel8Pack, bitIdx, voxelData);
+    return voxelData;
+}
+
+CloudVoxelData GetVoxelData_To(int3 inVoxelCoords)
+{
+    int bitIdx = inVoxelCoords.y % 8;
+    int3 sampleCoords = inVoxelCoords;
+    sampleCoords.y = (sampleCoords.y - bitIdx) / 8;
+    
+    uint4 voxel8Pack = _AutomatonFrom[sampleCoords];
+    CloudVoxelData voxelData;
+
+    UnpackVoxel(voxel8Pack, bitIdx, voxelData);
+    return voxelData;
+}
+
 // Transition Rules
 
 static const int3 SampleCoords[11] = { 
@@ -98,9 +124,8 @@ bool ActivationFunction(int3 inVoxelCoords)
         int3 sampleCoords = inVoxelCoords + SampleCoords[i];
         if (OutOfBoundsVoxelCoords(sampleCoords))
             continue;
-
-        uint voxel = _AutomatonFrom[sampleCoords];
-        CloudVoxelData voxelData = UnpackVoxel(voxel);
+        
+        CloudVoxelData voxelData = GetVoxelData_From(sampleCoords);
         if (voxelData.Activation)
             return true;
     }
@@ -131,12 +156,32 @@ void DoExtinction(int3 inVoxelCoords, inout CloudVoxelData ioData)
     ioData.Activation = ioData.Activation || rnd < generationProb * 0.1;
 }
 
-[numthreads(4, 4, 4)]
-void SimulationCS(uint3 inVoxelCoords : SV_DispatchThreadID)
+[numthreads(8, 8, 8)]
+void SimulationCS(uint3 id : SV_DispatchThreadID)
 {
-    int3 vCoords = inVoxelCoords;
-    if (OutOfBoundsVoxelCoords(vCoords))
-        return;
+    int3 packedVoxelCoords = id;
+    // if (OutOfBoundsVoxelCoords(voxelCoords))
+    //     return;
+    
+    uint4 voxel8PackFrom = _AutomatonFrom[packedVoxelCoords];
+    uint4 voxel8PackTo = 0.0;
+    
+    for (int bit = 0; bit < 8; bit++)
+    {
+        int3 upackedVoxelCoords = packedVoxelCoords;
+        upackedVoxelCoords.y = (packedVoxelCoords.y * 8) + bit;
+        
+        CloudVoxelData voxelDataFrom;
+        CloudVoxelData voxelDataTo;
+        UnpackVoxel(voxel8PackFrom, bit, voxelDataFrom);
+        
+        DoTransition(upackedVoxelCoords, voxelDataFrom, voxelDataTo);
+        DoExtinction(upackedVoxelCoords, voxelDataTo);
+        
+        PackVoxel(voxelDataTo, bit, voxel8PackTo);
+    }
+    
+    _AutomatonTo[packedVoxelCoords] = voxel8PackTo;
         
     // Calculate new voxel coordinates by applying wind
     // TODO: Currently only one direction though...
@@ -144,20 +189,20 @@ void SimulationCS(uint3 inVoxelCoords : SV_DispatchThreadID)
     // offsetCoords are coordinates of a 'neighboring' voxel (depending on how large _CloudSpeed is).
     // We use these coords in the transition rules to determined what state the neighboring voxel
     // would be in and write this state at our coordinates.
-    int3 neighborCoords = (vCoords + int3(_CloudSpeed, 0, 0)) % _VoxelGridResolution;
+    // int3 neighborCoords = (vCoords + int3(_CloudSpeed, 0, 0)) % _VoxelGridResolution;
     
     // These coordinates are used only for extinction rules where we convert voxel coordinates to a world position.
     // The _CloudOffset is incremented before each simulation by _CloudSpeed to give us a 'global' offset so that 
     // we always get the same world position and thus the same extinction probabilities.
-    int3 originalCoords = (vCoords + int3(_CloudOffset, 0, 0)) % _VoxelGridResolution;
+    // int3 originalCoords = (vCoords + int3(_CloudOffset, 0, 0)) % _VoxelGridResolution;
     
-    CloudVoxelData voxelDataFrom = UnpackVoxel(_AutomatonFrom[neighborCoords]);
-    CloudVoxelData voxelDataTo;
-    
-    DoTransition(neighborCoords, voxelDataFrom, voxelDataTo);
-    DoExtinction(originalCoords, voxelDataTo);
-    
-    _AutomatonTo[vCoords] = PackVoxel(voxelDataTo);
+    // CloudVoxelData voxelDataFrom = UnpackVoxel(_AutomatonFrom[neighborCoords]);
+    // CloudVoxelData voxelDataTo;
+    // 
+    // DoTransition(neighborCoords, voxelDataFrom, voxelDataTo);
+    // DoExtinction(originalCoords, voxelDataTo);
+    // 
+    // _AutomatonTo[vCoords] = PackVoxel(voxelDataTo);
 }
 
 [numthreads(4, 4, 4)]
@@ -177,8 +222,10 @@ void SmoothDensityCS(uint3 inVoxelCoords : SV_DispatchThreadID)
             for (int x = -smoothSizes.x; x <= smoothSizes.x; x++)
             {
                 int3 voxelCoords = vCoords + int3(x, y, z);
-                CloudVoxelData voxelData = UnpackVoxel(_AutomatonFrom[voxelCoords]);
-                CloudVoxelData voxelDataOld = UnpackVoxel(_AutomatonTo[voxelCoords]);
+                
+                CloudVoxelData voxelData = GetVoxelData_From(voxelCoords);
+                CloudVoxelData voxelDataOld = GetVoxelData_To(voxelCoords);
+                
                 density += voxelData.Clouds ? 1.0 : 0.0;
                 density += voxelDataOld.Clouds ? 1.0 : 0.0;
             }

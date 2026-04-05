@@ -345,6 +345,8 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 		readonly CommonVoxelCloudsSettings m_Common;
 		readonly SimulationPassSettings m_Settings;
 
+		Vector3Int m_ByteSpace;
+
 		float m_TimeSinceLastUpdate = 0.0f;
 		int m_CloudOffset = 0;
 
@@ -364,9 +366,12 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 			m_KernelSimulation = m_Shader.FindKernel("SimulationCS");
 			m_KernelSmoothDensity = m_Shader.FindKernel("SmoothDensityCS");
 
+			m_ByteSpace = m_Common.VoxelGridResolutionInt;
+			m_ByteSpace.y /= 8;
+
 			// Create automatons and textures
-			GraphicsHelper.CreateAutomaton(ref m_TextureCurrent, m_Common.VoxelGridResolutionInt, "_Automaton1");
-			GraphicsHelper.CreateAutomaton(ref m_TextureNext, m_Common.VoxelGridResolutionInt, "_Automaton2");
+			GraphicsHelper.CreateAutomaton(ref m_TextureCurrent, m_ByteSpace, "_Automaton1");
+			GraphicsHelper.CreateAutomaton(ref m_TextureNext, m_ByteSpace, "_Automaton2");
 
 			var desc = new RenderTextureDescriptor(m_Common.NumVoxelsX, m_Common.NumVoxelsY, GraphicsFormat.R16_UNorm, 0);
 			desc.volumeDepth = m_Common.NumVoxelsZ;
@@ -469,7 +474,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 						inCtx.cmd.SetComputeIntParam(inD.Shader, "_CloudOffset", m_CloudOffset);
 						inCtx.cmd.SetComputeIntParam(inD.Shader, "_Seed", UnityEngine.Random.Range(300, 1000));
 
-						GraphicsHelper.Dispatch(inCtx, inD.Shader, inD.Kernel, m_Common.VoxelGridResolutionInt);
+						GraphicsHelper.Dispatch(inCtx, inD.Shader, inD.Kernel, m_ByteSpace);
 					});
 				}
 				SwapAutomatons();
