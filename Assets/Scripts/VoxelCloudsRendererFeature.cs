@@ -416,11 +416,6 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridResolution", m_VoxelSpace.VoxelGridResolution);
 						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridOrigin", m_VoxelSpace.VoxelGridOrigin);
 				
-						// inCtx.cmd.SetComputeIntParam(inD.Shader, "_Volume", m_Common.Volume);
-						// inCtx.cmd.SetComputeIntParam(inD.Shader, "_CloudSpeed", m_Settings.CloudSpeed);
-						// inCtx.cmd.SetComputeIntParam(inD.Shader, "_CloudOffset", m_CloudOffset);
-						// inCtx.cmd.SetComputeIntParam(inD.Shader, "_Seed", UnityEngine.Random.Range(300, 1000));
-				
 						GraphicsHelper.Dispatch(inCtx, inD.Shader, inD.Kernel, m_VoxelSpace.VoxelGridResolutionInt);
 					});
 				}

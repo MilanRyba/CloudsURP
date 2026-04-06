@@ -29,33 +29,71 @@ float GetRandom01(int3 inVoxelCoords)
     return hash13(inVoxelCoords + float3(_Seed - 252, _Seed, _Seed + 22));
 }
 
-bool SDScene(int3 inVoxelCoords, out float outDistance)
-{
-    float3 posWS = WorldPositionFromVoxelCoords(inVoxelCoords) - 4.0;
+static int EllipsoidIndices[100];
 
-    outDistance = 100;
-    bool inside = false;
+void EarlyTestForEllipsoids(int3 inPackedVoxelCoords)
+{
+    // Construct AABox for packed voxels
+    
+    // Voxel coords of the bottom voxel
+    inPackedVoxelCoords.y = inPackedVoxelCoords.y * 8;
+    
+    float3 minBox = WorldPositionFromVoxelCoords(inPackedVoxelCoords);
+    minBox -= _VoxelSize * 0.5;
+
+    // Voxel coords of the top voxel
+    inPackedVoxelCoords.y += 7;
+    
+    float3 maxBox = WorldPositionFromVoxelCoords(inPackedVoxelCoords);
+    maxBox += _VoxelSize * 0.5;
+    
+    // Test which ellipsoids overlap this AABox
+    
+    int numEllipsoids = 0;
     for (int i = 0; i < _NumEllipsoids; i++)
     {
         Ellipsoid e = _Ellipsoids[i];
         e.Scale /= 2.0;
         
-        if (posWS.x > (e.Position.x - e.Scale.x) && posWS.x < (e.Position.x + e.Scale.x) &&
-			posWS.y > (e.Position.y - e.Scale.y) && posWS.y < (e.Position.y + e.Scale.y) &&
-			posWS.z > (e.Position.z - e.Scale.z) && posWS.z < (e.Position.z + e.Scale.z))
+        float3 minEllipsoid = e.Position - e.Scale;
+        float3 maxEllipsoid = e.Position + e.Scale;
+        
+        if (AABoxOverlapsAABox(minBox, maxBox, minEllipsoid, maxEllipsoid))
         {
-            // 1 =  on the edge, 0 = center
+            EllipsoidIndices[numEllipsoids] = i;
+            numEllipsoids++;
+        }
+    }
+}
+
+bool SDScene(int3 inVoxelCoords, out float outDistance)
+{
+    float3 posWS = WorldPositionFromVoxelCoords(inVoxelCoords);
+
+    outDistance = 100;
+    bool inside = false;
+    int currentEllipsoidIdx = 0;
+    for (int i = 0; i < _NumEllipsoids; i++)
+    {
+        if (i != EllipsoidIndices[currentEllipsoidIdx])
+            continue;
+        
+        currentEllipsoidIdx++;
+        
+        Ellipsoid e = _Ellipsoids[i];
+        e.Scale /= 2.0;
+        
+        // 1 =  on the edge, 0 = center
 			// (x/a)2 + (y/b)2 + (z/c)2 = 1 general equation for ellipsoid
-            float result = pow((posWS.x - e.Position.x) / e.Scale.x, 2) +
-                           pow((posWS.y - e.Position.y) / e.Scale.y, 2) +
-                           pow((posWS.z - e.Position.z) / e.Scale.z, 2);
+        float result = pow((posWS.x - e.Position.x) / e.Scale.x, 2) +
+                       pow((posWS.y - e.Position.y) / e.Scale.y, 2) +
+                       pow((posWS.z - e.Position.z) / e.Scale.z, 2);
             
-            // Inside the ellipsoid and the new distance is closer
-            if (result <= 1 && result < outDistance)
-            {
-                outDistance = result;
-                inside = true;
-            }
+        // Inside the ellipsoid and the new distance is closer
+        if (result <= 1 && result < outDistance)
+        {
+            outDistance = result;
+            inside = true;
         }
     }
     
@@ -163,20 +201,22 @@ void SimulationCS(uint3 id : SV_DispatchThreadID)
     // if (OutOfBoundsVoxelCoords(voxelCoords))
     //     return;
     
+    EarlyTestForEllipsoids(packedVoxelCoords);
+    
     uint4 voxel8PackFrom = _AutomatonFrom[packedVoxelCoords];
     uint4 voxel8PackTo = 0.0;
     
     for (int bit = 0; bit < 8; bit++)
     {
-        int3 upackedVoxelCoords = packedVoxelCoords;
-        upackedVoxelCoords.y = (packedVoxelCoords.y * 8) + bit;
+        int3 unpackedVoxelCoords = packedVoxelCoords;
+        unpackedVoxelCoords.y = (packedVoxelCoords.y * 8) + bit;
         
         CloudVoxelData voxelDataFrom;
         CloudVoxelData voxelDataTo;
         UnpackVoxel(voxel8PackFrom, bit, voxelDataFrom);
         
-        DoTransition(upackedVoxelCoords, voxelDataFrom, voxelDataTo);
-        DoExtinction(upackedVoxelCoords, voxelDataTo);
+        DoTransition(unpackedVoxelCoords, voxelDataFrom, voxelDataTo);
+        DoExtinction(unpackedVoxelCoords, voxelDataTo);
         
         PackVoxel(voxelDataTo, bit, voxel8PackTo);
     }

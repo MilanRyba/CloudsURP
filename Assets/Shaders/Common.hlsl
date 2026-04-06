@@ -196,6 +196,13 @@ bool RaySphereIntersection(float3 inCenter, float inRadius, Ray ray, out RayCast
     return true;
 }
 
+bool AABoxOverlapsAABox(float3 inMin1, float3 inMax1, float3 inMin2, float3 inMax2)
+{
+    return (inMin1.x <= inMax2.x && inMax1.x >= inMin2.x) &&
+           (inMin1.y <= inMax2.y && inMax1.y >= inMin2.y) &&
+           (inMin1.z <= inMax2.z && inMax1.z >= inMin2.z);
+}
+
 //
 // Phase functions
 //
