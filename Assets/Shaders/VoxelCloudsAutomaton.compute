@@ -19,10 +19,36 @@ struct Ellipsoid
 StructuredBuffer<Ellipsoid> _Ellipsoids;
 int _NumEllipsoids;
 
-uint _CloudSpeed;
-uint _CloudOffset;
+int2 _CloudDirection;
+int2 _CloudOffset;
 
 uint _Seed;
+
+CloudVoxelData GetVoxelData_From(int3 inVoxelCoords)
+{
+    int bitIdx = inVoxelCoords.y % 8;
+    int3 sampleCoords = inVoxelCoords;
+    sampleCoords.y = (sampleCoords.y - bitIdx) / 8;
+    
+    uint4 voxel8Pack = _AutomatonFrom[sampleCoords];
+    CloudVoxelData voxelData;
+
+    UnpackVoxel(voxel8Pack, bitIdx, voxelData);
+    return voxelData;
+}
+
+CloudVoxelData GetVoxelData_To(int3 inVoxelCoords)
+{
+    int bitIdx = inVoxelCoords.y % 8;
+    int3 sampleCoords = inVoxelCoords;
+    sampleCoords.y = (sampleCoords.y - bitIdx) / 8;
+    
+    uint4 voxel8Pack = _AutomatonFrom[sampleCoords];
+    CloudVoxelData voxelData;
+
+    UnpackVoxel(voxel8Pack, bitIdx, voxelData);
+    return voxelData;
+}
 
 float GetRandom01(int3 inVoxelCoords)
 {
@@ -84,7 +110,7 @@ bool SDScene(int3 inVoxelCoords, out float outDistance)
         e.Scale /= 2.0;
         
         // 1 =  on the edge, 0 = center
-			// (x/a)2 + (y/b)2 + (z/c)2 = 1 general equation for ellipsoid
+		// (x/a)2 + (y/b)2 + (z/c)2 = 1 general equation for ellipsoid
         float result = pow((posWS.x - e.Position.x) / e.Scale.x, 2) +
                        pow((posWS.y - e.Position.y) / e.Scale.y, 2) +
                        pow((posWS.z - e.Position.z) / e.Scale.z, 2);
@@ -105,44 +131,18 @@ void GetCloudProbabilities(int3 inVoxelCoords, out float outProbabilityExtinctio
     float d;
     if (!SDScene(inVoxelCoords, d))
     {
-        outProbabilityExtinction = 0.9; // High clouds extiction outside the sphere
+        outProbabilityExtinction = 0.2;
         outProbabilityGeneration = 0.0; // No geration outside the sphere
         return;
     }
     
     // Increase extinction probability (a little bit) towards the edges
-    outProbabilityExtinction = lerp(0.005, 0.2, d);
+    outProbabilityExtinction = lerp(0.0, 0.2, d);
     
     // Decrease generation probability (a little bit) towards the edges
-    outProbabilityGeneration = lerp(0.15, 0.005, d);
+    outProbabilityGeneration = lerp(0.15, 0.025, d);
     
     return;
-}
-
-CloudVoxelData GetVoxelData_From(int3 inVoxelCoords)
-{
-    int bitIdx = inVoxelCoords.y % 8;
-    int3 sampleCoords = inVoxelCoords;
-    sampleCoords.y = (sampleCoords.y - bitIdx) / 8;
-    
-    uint4 voxel8Pack = _AutomatonFrom[sampleCoords];
-    CloudVoxelData voxelData;
-
-    UnpackVoxel(voxel8Pack, bitIdx, voxelData);
-    return voxelData;
-}
-
-CloudVoxelData GetVoxelData_To(int3 inVoxelCoords)
-{
-    int bitIdx = inVoxelCoords.y % 8;
-    int3 sampleCoords = inVoxelCoords;
-    sampleCoords.y = (sampleCoords.y - bitIdx) / 8;
-    
-    uint4 voxel8Pack = _AutomatonFrom[sampleCoords];
-    CloudVoxelData voxelData;
-
-    UnpackVoxel(voxel8Pack, bitIdx, voxelData);
-    return voxelData;
 }
 
 // Transition Rules
@@ -197,52 +197,35 @@ void DoExtinction(int3 inVoxelCoords, inout CloudVoxelData ioData)
 [numthreads(8, 8, 8)]
 void SimulationCS(uint3 id : SV_DispatchThreadID)
 {
-    int3 packedVoxelCoords = id;
-    // if (OutOfBoundsVoxelCoords(voxelCoords))
-    //     return;
+    int3 currentPackedCoords = id;
     
-    EarlyTestForEllipsoids(packedVoxelCoords);
+    // Calculate new voxel coordinates by applying wind
+    // neighborPackedCoords are coordinates of a 'neighboring' voxel (depending on how large _CloudDirection is).
+    // We essentialy determine the state of the neighboring voxel and write this state at our coordinates.
+    int3 neighborPackedCoords = currentPackedCoords;
+    neighborPackedCoords.xz = (neighborPackedCoords.xz + _CloudDirection) % _VoxelGridResolution.xz;
     
-    uint4 voxel8PackFrom = _AutomatonFrom[packedVoxelCoords];
+    EarlyTestForEllipsoids(neighborPackedCoords);
+    
+    uint4 voxel8PackFrom = _AutomatonFrom[neighborPackedCoords];
     uint4 voxel8PackTo = 0.0;
     
     for (int bit = 0; bit < 8; bit++)
     {
-        int3 unpackedVoxelCoords = packedVoxelCoords;
-        unpackedVoxelCoords.y = (packedVoxelCoords.y * 8) + bit;
+        int3 unpackedNeighborCoords = neighborPackedCoords;        
+        unpackedNeighborCoords.y = (unpackedNeighborCoords.y * 8) + bit;
         
         CloudVoxelData voxelDataFrom;
         CloudVoxelData voxelDataTo;
         UnpackVoxel(voxel8PackFrom, bit, voxelDataFrom);
         
-        DoTransition(unpackedVoxelCoords, voxelDataFrom, voxelDataTo);
-        DoExtinction(unpackedVoxelCoords, voxelDataTo);
+        DoTransition(unpackedNeighborCoords, voxelDataFrom, voxelDataTo);
+        DoExtinction(unpackedNeighborCoords, voxelDataTo);
         
         PackVoxel(voxelDataTo, bit, voxel8PackTo);
     }
     
-    _AutomatonTo[packedVoxelCoords] = voxel8PackTo;
-        
-    // Calculate new voxel coordinates by applying wind
-    // TODO: Currently only one direction though...
-    
-    // offsetCoords are coordinates of a 'neighboring' voxel (depending on how large _CloudSpeed is).
-    // We use these coords in the transition rules to determined what state the neighboring voxel
-    // would be in and write this state at our coordinates.
-    // int3 neighborCoords = (vCoords + int3(_CloudSpeed, 0, 0)) % _VoxelGridResolution;
-    
-    // These coordinates are used only for extinction rules where we convert voxel coordinates to a world position.
-    // The _CloudOffset is incremented before each simulation by _CloudSpeed to give us a 'global' offset so that 
-    // we always get the same world position and thus the same extinction probabilities.
-    // int3 originalCoords = (vCoords + int3(_CloudOffset, 0, 0)) % _VoxelGridResolution;
-    
-    // CloudVoxelData voxelDataFrom = UnpackVoxel(_AutomatonFrom[neighborCoords]);
-    // CloudVoxelData voxelDataTo;
-    // 
-    // DoTransition(neighborCoords, voxelDataFrom, voxelDataTo);
-    // DoExtinction(originalCoords, voxelDataTo);
-    // 
-    // _AutomatonTo[vCoords] = PackVoxel(voxelDataTo);
+    _AutomatonTo[currentPackedCoords] = voxel8PackTo;
 }
 
 [numthreads(4, 4, 4)]

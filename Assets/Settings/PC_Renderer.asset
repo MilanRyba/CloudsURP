@@ -30,8 +30,8 @@ MonoBehaviour:
     ShowTextures: 0
     Slice: 0.326
   m_SimulationPassSettings:
-    CloudSpeed: 0
-    TimeBetweenUpdates: 0
+    CloudDirection: {x: -1, y: 1}
+    TimeBetweenUpdates: 0.1
 --- !u!114 &-7801735191280408724
 MonoBehaviour:
   m_ObjectHideFlags: 0

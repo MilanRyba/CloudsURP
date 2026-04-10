@@ -114,8 +114,8 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 	[Serializable]
     public class SimulationPassSettings
     {
-		[Min(0), Tooltip("How many units will each voxel move after a simulation step.")]
-		public int CloudSpeed = 1;
+		[Tooltip("Number of units the clouds will move after each simulation step on the XZ plane")]
+		public Vector2Int CloudDirection = Vector2Int.zero;
 
 		[Range(0.0f, 2.0f), Tooltip("Number of second between each simulation step.")]
 		public float TimeBetweenUpdates = 0.5f;
@@ -285,7 +285,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 		Vector3Int m_ByteSpace;
 
 		float m_TimeSinceLastUpdate = 0.0f;
-		int m_CloudOffset = 0;
+		Vector2Int m_CloudOffset = Vector2Int.zero;
 
 		#endregion
 
@@ -356,7 +356,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 				// Reset timer
 				m_TimeSinceLastUpdate = 0.0f;
 
-				m_CloudOffset += m_Settings.CloudSpeed;
+				m_CloudOffset += m_Settings.CloudDirection;
 
 				// Run the simulation step
 				using (IComputeRenderGraphBuilder builder = graph.AddComputePass("Simulation Pass", out PassData data))
@@ -384,8 +384,12 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridOrigin", m_VoxelSpace.VoxelGridOrigin);
 				
 						inCtx.cmd.SetComputeIntParam(inD.Shader, "_Volume", m_VoxelSpace.Volume);
-						inCtx.cmd.SetComputeIntParam(inD.Shader, "_CloudSpeed", m_Settings.CloudSpeed);
-						inCtx.cmd.SetComputeIntParam(inD.Shader, "_CloudOffset", m_CloudOffset);
+
+						Vector2 cloudDirection = new Vector2(m_Settings.CloudDirection.x, m_Settings.CloudDirection.y);
+						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_CloudDirection", cloudDirection);
+						Vector2 cloudOffset  = new Vector2(m_CloudOffset.x, m_CloudOffset.y);
+						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_CloudOffset", cloudOffset);
+
 						inCtx.cmd.SetComputeIntParam(inD.Shader, "_Seed", UnityEngine.Random.Range(300, 1000));
 				
 						GraphicsHelper.Dispatch(inCtx, inD.Shader, inD.Kernel, m_ByteSpace);
