@@ -31,7 +31,7 @@ MonoBehaviour:
     Slice: 0.326
   m_SimulationPassSettings:
     CloudDirection: {x: -1, y: 1}
-    TimeBetweenUpdates: 0.1
+    TimeBetweenUpdates: 0.5
 --- !u!114 &-7801735191280408724
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -82,11 +82,14 @@ public class VoxelSpace : ScriptableObject
 		Vector3 scaleMin = new Vector3(scaleXZMin, scaleXZMin * 0.5f, scaleXZMin);
 		Vector3 scaleMax = new Vector3(scaleXZMax, scaleXZMax * 0.5f, scaleXZMax);
 
+		// Shrink the voxel space so that the ellipsoids don't poke out
+		voxelBoundsMin += scaleMax / 2.0f;
+		voxelBoundsMax -= scaleMax / 2.0f;
+
 		m_Ellipsoids = new Ellipsoid[NumEllipsoids];
 		for (int i = 0; i < NumEllipsoids; i++)
 		{
-			m_Ellipsoids[i] = new Ellipsoid(GetRandomVector3(voxelBoundsMin * 0.65f, voxelBoundsMax * 0.65f), 
-				                            GetRandomVector3(scaleMin, scaleMax));
+			m_Ellipsoids[i] = new Ellipsoid(GetRandomVector3(voxelBoundsMin, voxelBoundsMax), GetRandomVector3(scaleMin, scaleMax));
 		}
 	}
 
