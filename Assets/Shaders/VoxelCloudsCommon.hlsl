@@ -1,10 +1,10 @@
 ﻿#pragma once
 
 //==============================
-// Voxel Byte Layout - 0000 0HCA
-//   H = Humidity
-//   C = Clouds
-//   A = Activation
+// Voxel Layout
+//   X = Humidity
+//   Y = Clouds
+//   Z = Activation
 //==============================
 
 struct CloudVoxelData
@@ -14,48 +14,18 @@ struct CloudVoxelData
     bool Activation;
 };
 
-CloudVoxelData UnpackVoxel(uint inVoxel)
+void UnpackVoxel(uint4 inVoxels, int inBitIdx, out CloudVoxelData outVoxelData)
 {
-    CloudVoxelData voxelData;
-    voxelData.Humidity = (inVoxel & (1 << 2)) != 0;
-    voxelData.Clouds = (inVoxel & (1 << 1)) != 0;
-    voxelData.Activation = (inVoxel & (1 << 0)) != 0;
-    return voxelData;
+    outVoxelData.Humidity   = (inVoxels.x & (1 << inBitIdx)) != 0;
+    outVoxelData.Clouds     = (inVoxels.y & (1 << inBitIdx)) != 0;
+    outVoxelData.Activation = (inVoxels.z & (1 << inBitIdx)) != 0;
 }
 
-uint PackVoxel(CloudVoxelData inData)
+void PackVoxel(CloudVoxelData inData, int inBitIdx, inout uint4 ioVoxels)
 {
-    uint voxel = 0;
-    voxel |= inData.Humidity ? 1 << 2 : 0;
-    voxel |= inData.Clouds ? 1 << 1 : 0;
-    voxel |= inData.Activation ? 1 << 0 : 0;
-    return voxel;
-}
-
-uint _Visualization; // 0 = Humidity, 1 = Clouds, 2 = Activation, 3 = All
-
-float4 ColorFromVoxelVisualization(CloudVoxelData inData)
-{
-    bool assertion = false;
-    if (_Visualization == 0)
-        assertion = inData.Humidity;
-    else if (_Visualization == 1)
-        assertion = inData.Clouds;
-    else if (_Visualization == 2)
-        assertion = inData.Activation;
-    
-    if (assertion)
-        return 1.0;
-    else if (_Visualization == 3)
-    {
-        float4 color = 1.0;
-        color.r = inData.Humidity ? 1.0 : 0.0;
-        color.g = inData.Clouds ? 1.0 : 0.0;
-        color.b = inData.Activation ? 1.0 : 0.0;
-        return color;
-    }
-    else
-        return 0.0;
+    ioVoxels.x |= inData.Humidity   ? 1 << inBitIdx : 0;
+    ioVoxels.y |= inData.Clouds     ? 1 << inBitIdx : 0;
+    ioVoxels.z |= inData.Activation ? 1 << inBitIdx : 0;
 }
 
 // +----------------------+     +-------------------+     +-------+
