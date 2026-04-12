@@ -182,6 +182,12 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 	[Serializable]
 	public class CloudResourcesPassSettings
 	{
+		[Range(0.1f, 2.0f), Tooltip("Lower values will turn more clouds into cumulus")]
+		public float CloudTypeBase = 0.8f;
+
+		[Range(0.0f, 2.0f)]
+		public float CumulusHighlight = 1.2f;
+
 		public bool RefreshResources = false;
 	}
 
@@ -392,7 +398,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			m_KernelCloudMap = m_Shader.FindKernel("CloudMapCS");
 
 			// Re-create textures if needed
-			GraphicsFormat format = GraphicsFormat.R16G16B16A16_SFloat;
+			GraphicsFormat format = GraphicsFormat.R8G8B8A8_UNorm;
 			GraphicsHelper.CreateNoise3D(ref m_HandleNoiseShape, m_ResNoiseShape, format, "_CloudShapeNoise3D");
 			GraphicsHelper.CreateNoise3D(ref m_HandleNoiseDetail, m_ResNoiseDetail, format, "_CloudDetailNoise3D");
 			GraphicsHelper.CreateNoise2D(ref m_HandleCloudMap, m_ResCloudMap, format, "_CloudMap");
@@ -462,6 +468,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 				{
 					inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "OutputMap", inD.Output);
 					inCtx.cmd.SetComputeFloatParam(inD.Shader, "ResolutionInv", inD.ResolutionInv);
+					inCtx.cmd.SetComputeFloatParam(inD.Shader, "CloudTypeBase", m_Settings.CloudTypeBase);
+					inCtx.cmd.SetComputeFloatParam(inD.Shader, "CumulusHighlight", m_Settings.CumulusHighlight);
 
 					GraphicsHelper.DispatchXY(inCtx, inD.Shader, inD.Kernel, m_ResCloudMap);
 				});

@@ -142,8 +142,12 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     
     const float cloudMapBaseScale = 6.0;
     float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, staticUv * cloudMapBaseScale * CoverageRepeat, 0);
-    float coverage = cloudMapSample.r;
-    float cloudType = cloudMapSample.b;
+    
+    float loopTime = 10.0;
+    float t = mod(Time, loopTime) * (1.0 / loopTime);
+    // t = Slice;
+    float coverage = lerp(cloudMapSample.r, cloudMapSample.g, 1.0 - t);
+    float cloudType = lerp(cloudMapSample.b, cloudMapSample.a, 1.0 - t);
     
     // Read the low-frequency Perlin-Worley noise and Worley noises.
     float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, float3(uv * 100.0 * ShapeNoiseScale, heightFraction), inMipLevel);

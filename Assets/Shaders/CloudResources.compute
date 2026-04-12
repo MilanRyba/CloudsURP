@@ -7,9 +7,8 @@
 
 float ResolutionInv;             // (1 / Resolution) of any texture to which we write here
 
-// Use these two parameters to create various cloud maps in the future
-// float GlobalCloudType;
-// float GlobalCoverage;
+float CloudTypeBase;
+float CumulusHighlight;
 
 RWTexture3D<float4> OutputNoise; // Writeable 3D texture
 RWTexture2D<float4> OutputMap;   // Writeable 2D texture
@@ -44,23 +43,64 @@ void CloudNoiseDetailCS(uint3 id : SV_DispatchThreadID)
     OutputNoise[id] = float4(worleyFBM0, worleyFBM1, worleyFBM2, 1.0);
 }
 
+float CloudCoveragePerlin(float3 inUVW, float3 inBaseOffset, float inBaseStrength)
+{
+    // A low frequency noise modulates cloud coverage to simulate the 
+    // large regions where air masses overlap and clouds are allowed to form.
+    float lowFreqBase = PerlinFBM(inUVW + inBaseOffset, 4, 6, false);
+    lowFreqBase = Remap(lowFreqBase, -0.12, 1.0, 0.0, inBaseStrength);
+    
+    float perlin = PerlinFBM(inUVW + float3(0.1, 0.5, 0.3), 5, 5, false);
+    perlin = Remap(perlin, -0.6, 0.6, 0.0, 0.7);
+    
+    return lowFreqBase * perlin * 0.8;
+}
+
+float CloudCoverageWorley(float3 inUVW)
+{
+    float lowFreqBase = PerlinFBM(inUVW + float3(0.1, 0.2, 0.8), 4, 6, false);
+    lowFreqBase = Remap(lowFreqBase, -0.15, 1.0, 0.0, 10.0);
+    
+    float worley = WorleyFBMDecima(inUVW, 2.0);
+    worley = Remap(worley, 0.0, 1.0, 0.0, 2.0);
+    worley = pow(worley, 1.5);
+    
+    return lowFreqBase * worley * 0.45;
+}
+
+float CloudTypeAlligator(float3 inUVW, float inCloudTypeBase, float inCumulusHighlight)
+{
+    float cloudType = AlligatorFBM(inUVW, 8, 6);
+    
+    // Raises the lower values
+    cloudType = pow(cloudType, inCloudTypeBase);
+    
+    // 'Highlight' cumulus clouds
+    cloudType = Remap(cloudType, 0.0, 1, 0.0, inCumulusHighlight);
+    
+    return cloudType;
+}
+
+float CloudTypePerlin(float3 inUVW)
+{
+    float cloudType = PerlinFBM(inUVW, 22, 6, true);
+    
+    // Raises the lower values
+    cloudType = pow(cloudType, 1.84);
+    
+    // 'Highlight' cumulus clouds
+    cloudType = Remap(cloudType, 0.0, 1, 0.0, 0.2);
+    
+    return cloudType;
+}
+
 [numthreads(8, 8, 1)]
 void CloudMapCS(uint3 id : SV_DispatchThreadID)
 {
     float3 uvw = TexelToUV(id, ResolutionInv);
     
-    // A low frequency noise modulates cloud coverage to simulate the 
-    // large regions where air masses overlap and clouds are allowed to form.
-    float lowFreqBase = PerlinFBM(uvw, 4, 6, false);
-    lowFreqBase = Remap(lowFreqBase, -0.12, 1.0, 0.0, 15.0);
-    
-    float perlin = PerlinFBM(uvw + float3(0.1, 0.5, 0.3), 5, 5, false);
-    perlin = Remap(perlin, -0.6, 0.6, 0.0, 0.7);
-    float red = lowFreqBase * perlin * 0.8;
-    
-    float worley = PerlinWorleyDecima(uvw, 4, 5);
-    worley = Remap(worley, 0.0, 1.0, -0.75, 1.25);
-    float green = lowFreqBase * worley;
+    float coverage1 = CloudCoveragePerlin(uvw, 0.0, 15.0);
+    float coverage2 = CloudCoveragePerlin(uvw, 0.0, 10.0);
     
     // For cloud type we use the billows of alligator noise.
     // Similarly as worley noise, it contains spots with high values that are gradually toned down.
@@ -68,13 +108,8 @@ void CloudMapCS(uint3 id : SV_DispatchThreadID)
     // Using a more uniform noise would result in clouds having the same height.
     
     // Found out that using higher frequencies looks better. Six octaves for a full FBM.
-    float cloudType = AlligatorFBM(uvw, 8, 6);
-    
-    // Raises the lower values
-    cloudType = pow(cloudType, 0.8);
-    
-    // 'Highlight' cumulus clouds
-    cloudType = Remap(cloudType, 0.0, 1, 0.0, 1.2);
+    float cloudType1 = CloudTypeAlligator(uvw, 0.8, 1.2);
+    float cloudType2 = CloudTypeAlligator(uvw + float3(0.1, 0.8, -0.3), 1.5, 0.5);
         
-    OutputMap[id.xy] = saturate(float4(red, green, cloudType, 1.0));
+    OutputMap[id.xy] = saturate(float4(coverage1, coverage2, cloudType1, cloudType2));
 }
