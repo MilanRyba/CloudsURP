@@ -84,25 +84,42 @@ float GetHeightFractionForPoint(float3 inPosition)
 
 float MetaballAttenuation(float inDistanceFromCenter)
 {
+    // Handle the case where sample position is outside the metaball
     if (inDistanceFromCenter > _MetaballRadius)
         return 0.0;
     
+    // Three constant coefficients
     const float a = -(4.0  / 9.0);
     const float b =  (17.0 / 9.0);
     const float c = -(22.0 / 9.0);
+    
+    // A distance factor, 0 = voxel center, 1 = metaball edge
     float distanceFactor = inDistanceFromCenter / _MetaballRadius;
     
-    return a * pow(distanceFactor, 6.0) + b * pow(distanceFactor, 4.0) + c * pow(distanceFactor, 2.0) + 1.0;
+    // Using pow() is expensive, instead precompute different 
+    // powers of distanceFactor. Specifically the 2nd, 4th and 6th powers
+    float df2 = distanceFactor * distanceFactor;
+    float df4 = df2 * df2;
+    float df6 = df4 * df2;
+    
+    // The field function from Dobashi et al.
+    float fieldFunction = a * df6 + b * df4 + c * df2 + 1.0;
+    
+    // To use the field function as basis function, 
+    // we normalize it by its total density
+    float normalizingFactor = (748.0 / 405.0) * PI * _MetaballRadius /* * 0.2 */;
+    
+    return fieldFunction / normalizingFactor;
 }
 
 float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipLevel)
 {
     int3 ogVoxelCoords = VoxelCoordsFromWorldPosition(inSamplePosition);
     
+    // How many neighboring voxels to check
     int lookUpDistance = 1;
     
     float density = 0.0;
-    
     for (int z = -lookUpDistance; z <= lookUpDistance; z++)
     {
         for (int y = -lookUpDistance; y <= lookUpDistance; y++)
@@ -112,18 +129,42 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
                 int3 voxelCoords = ogVoxelCoords + int3(x, y, z);
                 float sampledDensity = SmoothDensity[voxelCoords];
                 
+                // This voxel has no clouds inside
                 if (sampledDensity == 0.0)
                     continue;
                 
+                // Get world position of voxel's center and its distance to sample position
                 float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords);
                 float distanceFromCenter = distance(voxelCenter, inSamplePosition);
+                
+                // Use the distance to calculate metaball's attenuation and sum up the density
                 density += sampledDensity * MetaballAttenuation(distanceFromCenter);
             }
         }
     }
     
     return saturate(density * GlobalDensity);
-}   
+}
+
+// float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipLevel)
+// {
+//     // Get density at the current voxel
+//     int3 voxelCoords = VoxelCoordsFromWorldPosition(inSamplePosition);
+//     float sampledDensity = SmoothDensity[voxelCoords];
+//     
+//     // If density at the current voxel is 0, leave
+//     if (sampledDensity == 0.0)
+//         return 0.0;
+//     
+//     // Get world position of voxel's center and its distance to sample position
+//     float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords);
+//     float dist = distance(inSamplePosition, voxelCenter);
+//     
+//     // Remap the distance so that the falloff factor is 1 at voxel center and 0 at its sides
+//     float distanceFalloff = Remap(dist, 0.0, _VoxelSize * 0.5, 1.0, 0.0);
+//     
+//     return saturate(distanceFalloff * sampledDensity * GlobalDensity);
+// }
 
 static const float3 NOISE_KERNEL[6] =
 {
@@ -287,11 +328,11 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float sceneDepth = DepthTexture.SampleLevel(sPointClamp, uv, 0).r;
     
     // Geometry in the scene is obscuring the clouds
-    if (sceneDepth > 0.0)
-    {
-        Output[id.xy] = sceneColor;
-        return;
-    }
+    // if (sceneDepth > 0.0)
+    // {
+    //     Output[id.xy] = sceneColor;
+    //     return;
+    // }
     
     // Create camera ray
     Ray ray = GetCameraRay(uv, CameraPosition, ProjInv, ViewInv);

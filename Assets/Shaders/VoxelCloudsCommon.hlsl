@@ -28,9 +28,9 @@ void PackVoxel(CloudVoxelData inData, int inBitIdx, inout uint4 ioVoxels)
     ioVoxels.z |= inData.Activation ? 1 << inBitIdx : 0;
 }
 
-// +----------------------+     +-------------------+     +-------+
+// +----------------------+     +-------------------+    +-------+
 // | World Space Position | <=> | Voxel Coordinates | => | Index |
-// +----------------------+     +-------------------+     +-------+
+// +----------------------+     +-------------------+    +-------+
 
 // !! If you want to use the functions below, you must set these uniforms(?) from Unity !!
 

@@ -7,6 +7,6 @@ public class Screenshotter : MonoBehaviour
     {
         Keyboard keyboard = Keyboard.current;
         if (keyboard != null && keyboard.pKey.wasPressedThisFrame)
-            ScreenCapture.CaptureScreenshot("Screenshots/New.png");
+            ScreenCapture.CaptureScreenshot("Screenshots/AlligatorO.png");
     }
 }

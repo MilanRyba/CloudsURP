@@ -9,6 +9,29 @@
 // Worley Noise
 //===============================
 
+float WorleyFBM(float3 inPosition, int inFrequency, int inOctaves, int inMetric)
+{
+    int lacunarity = 2;
+    float persistence = 0.5;
+    
+    int frequency = inFrequency;
+    float amplitude = 1.0;
+    float amplitudeSum = 0.0;
+    float sum = 0.0;
+    
+    for (int i = 0; i < inOctaves; i++)
+    {
+        sum += amplitude * WorleyNoise(inPosition, frequency, 0, inMetric);
+        frequency *= lacunarity;
+        amplitudeSum += amplitude;
+        amplitude *= persistence;
+    }
+    
+    float fbm = sum / amplitudeSum;
+    
+    return fbm;
+}
+
 float WorleyFBMDecima(float3 inPosition, float inBaseFrequency)
 {    
     float worley1 = WorleyNoise(inPosition, inBaseFrequency * 19.0, float3(0, 200, 0)) / 3.0;

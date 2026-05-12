@@ -212,7 +212,7 @@ void SimulationCS(uint3 id : SV_DispatchThreadID)
     
     for (int bit = 0; bit < 8; bit++)
     {
-        int3 unpackedNeighborCoords = neighborPackedCoords;        
+        int3 unpackedNeighborCoords = neighborPackedCoords;
         unpackedNeighborCoords.y = (unpackedNeighborCoords.y * 8) + bit;
         
         CloudVoxelData voxelDataFrom;
@@ -231,11 +231,14 @@ void SimulationCS(uint3 id : SV_DispatchThreadID)
 [numthreads(4, 4, 4)]
 void SmoothDensityCS(uint3 inVoxelCoords : SV_DispatchThreadID)
 {
-    int3 vCoords = inVoxelCoords;
-    if (OutOfBoundsVoxelCoords(vCoords))
+    int3 originalVoxelCoords = inVoxelCoords;
+    if (OutOfBoundsVoxelCoords(originalVoxelCoords))
         return;
     
+    // Define the sizes for the smoothing
     int3 smoothSizes = int3(1, 1, 1);
+    // smoothSizes = int3(2, 2, 2);
+    // smoothSizes = int3(0, 0, 0);
     float density = 0.0;
     
     for (int z = -smoothSizes.z; z <= smoothSizes.z; z++)
@@ -244,18 +247,21 @@ void SmoothDensityCS(uint3 inVoxelCoords : SV_DispatchThreadID)
         {
             for (int x = -smoothSizes.x; x <= smoothSizes.x; x++)
             {
-                int3 voxelCoords = vCoords + int3(x, y, z);
+                // Construct coordinates for the current voxel
+                int3 voxelCoords = originalVoxelCoords + int3(x, y, z);
                 
+                // Retrieve voxel data (hum, cld, act) for the previous and current time steps
                 CloudVoxelData voxelData = GetVoxelData_From(voxelCoords);
-                CloudVoxelData voxelDataOld = GetVoxelData_To(voxelCoords);
                 
+                // Sum up density
                 density += voxelData.Clouds ? 1.0 : 0.0;
-                density += voxelDataOld.Clouds ? 1.0 : 0.0;
             }
         }
     }
     
+    // Calculate normalization factor based on smoothSizes
     smoothSizes = smoothSizes * 2.0 + 1.0;
-    float normalizationFactor = 1.0 / (smoothSizes.x * smoothSizes.y * smoothSizes.z * 2.0);
-    _SmoothDensity[vCoords] = normalizationFactor * density;
+    float normalizationFactor = 1.0 / (smoothSizes.x * smoothSizes.y * smoothSizes.z);
+    
+    _SmoothDensity[originalVoxelCoords] = normalizationFactor * density;
 }

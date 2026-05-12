@@ -32,7 +32,6 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		m_CloudResourcesPass = new CloudResourcesPass(m_CloudResourcesSettings);
 
 		m_CloudResourcesSettings.RefreshResources = true;
-		// Debug.Log("Create() from CloudsRendererFeature");
     }
 
 	// Called once per frame per camera, this method injects 'ScriptableRenderPass' instances into the renderer
@@ -136,6 +135,11 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Range(0.0f, 1.0f)]
 		public float DetailNoiseInfluence = 0.4f;
 
+		public Texture2D CurlNoise;
+
+		[Range(0.0f, 50.0f)]
+		public float Curliness = 2.0f;
+
 		[Header("Phase")]
 
 		// TODO: What is this tooltip??
@@ -188,6 +192,11 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Range(0.0f, 2.0f)]
 		public float CumulusHighlight = 1.2f;
 
+		public Vector3 CoverageOffset = Vector3.zero;
+
+		[Range(0.0f, 30.0f)]
+		public float CoverageStrength = 1.0f;
+
 		public bool RefreshResources = false;
 	}
 
@@ -203,6 +212,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		RTHandle m_NoiseShape;
 		RTHandle m_NoiseDetail;
 		RTHandle m_CloudMap;
+		RTHandle m_CurlNoise;
 
 		readonly CloudsPassSettings m_Settings;
 
@@ -224,6 +234,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			m_CloudMap = inCloudMap;
 
 			requiresIntermediateTexture = true;
+
+			m_CurlNoise = RTHandles.Alloc(m_Settings.CurlNoise);
 		}
 
 		private class PassData
@@ -241,6 +253,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			public TextureHandle NoiseShape;
 			public TextureHandle NoiseDetail;
 			public TextureHandle CloudMap;
+			public TextureHandle CurlNoiseTexture;
 			public TextureHandle SceneTexture;
 			public TextureHandle DepthTexture;
 			public TextureHandle Output;
@@ -285,6 +298,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 				data.NoiseShape = renderGraph.ImportTexture(m_NoiseShape);
 				data.NoiseDetail = renderGraph.ImportTexture(m_NoiseDetail);
 				data.CloudMap = renderGraph.ImportTexture(m_CloudMap);
+				data.CurlNoiseTexture = renderGraph.ImportTexture(m_CurlNoise);
 
 				builder.UseTexture(destination, AccessFlags.Write);
 				builder.UseTexture(source, AccessFlags.Read);
@@ -292,6 +306,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 				builder.UseTexture(data.NoiseShape, AccessFlags.Read);
 				builder.UseTexture(data.NoiseDetail, AccessFlags.Read);
 				builder.UseTexture(data.CloudMap, AccessFlags.Read);
+				builder.UseTexture(data.CurlNoiseTexture, AccessFlags.Read);
 
 				builder.SetRenderFunc((PassData inD, ComputeGraphContext inCtx) =>
 				{
@@ -317,6 +332,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseScale", m_Settings.DetailNoiseScale);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseInfluence", m_Settings.DetailNoiseInfluence);
 					inCtx.cmd.SetComputeIntParam(m_Shader, "CoverageRepeat", m_Settings.CoverageRepeat);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "Curliness", m_Settings.Curliness);
 
 					Vector3 windDirection = new Vector3(Mathf.Cos(m_Settings.WindAngle * Mathf.Deg2Rad), 0, -Mathf.Sin(m_Settings.WindAngle * Mathf.Deg2Rad));
 					inCtx.cmd.SetComputeVectorParam(m_Shader, "WindDirection", windDirection);
@@ -332,6 +348,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "ShapeTexture", inD.NoiseShape);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "DetailTexture", inD.NoiseDetail);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CloudMap", inD.CloudMap);
+					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "CurlNoiseTexture", inD.CurlNoiseTexture);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "SceneTexture", inD.SceneTexture);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "DepthTexture", inD.DepthTexture);
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "Output", inD.Output);
@@ -470,6 +487,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeFloatParam(inD.Shader, "ResolutionInv", inD.ResolutionInv);
 					inCtx.cmd.SetComputeFloatParam(inD.Shader, "CloudTypeBase", m_Settings.CloudTypeBase);
 					inCtx.cmd.SetComputeFloatParam(inD.Shader, "CumulusHighlight", m_Settings.CumulusHighlight);
+					inCtx.cmd.SetComputeFloatParam(inD.Shader, "CoverageStrength", m_Settings.CoverageStrength);
+					inCtx.cmd.SetComputeVectorParam(inD.Shader, "CoverageOffset", m_Settings.CoverageOffset);
 
 					GraphicsHelper.DispatchXY(inCtx, inD.Shader, inD.Kernel, m_ResCloudMap);
 				});

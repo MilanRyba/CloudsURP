@@ -12,10 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 085e3d86509fa5049ba33ee7657a338f, type: 3}
   m_Name: VoxelSpace
   m_EditorClassIdentifier: Assembly-CSharp::VoxelSpace
-  WorldExtents: {x: 2048, y: 256, z: 2048}
-  WorldOffset: {x: 0, y: 64, z: 0}
-  VoxelSize: 4
-  NumEllipsoids: 33
-  ScaleMean: 218
-  ScaleDeviation: 56
-  EllispoidSeed: 32
+  WorldExtents: {x: 1024, y: 256, z: 1024}
+  WorldOffset: {x: 0, y: 96, z: 0}
+  VoxelSize: 2
+  NumEllipsoids: 100
+  ScaleMean: 134
+  ScaleDeviation: 125.3
+  EllispoidSeed: 447
+  WeatherMap: {fileID: 2800000, guid: 7bf985f4910f8d24cb43605c0e0a931f, type: 3}

@@ -186,7 +186,7 @@ namespace Helpers
 				outHandle.rt.volumeDepth != inDimensions.z)
 			{
 				Release(outHandle);
-
+				
 				var desc = new RenderTextureDescriptor(inDimensions.x, inDimensions.y, GraphicsFormat.R8G8B8A8_UInt, 0)
 				{
 					volumeDepth = inDimensions.z,

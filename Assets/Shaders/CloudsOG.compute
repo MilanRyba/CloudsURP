@@ -35,6 +35,7 @@ float ShapeNoiseScale;
 float DetailNoiseScale;
 float DetailNoiseInfluence;
 int CoverageRepeat;
+float Curliness;
 
 //
 // Wind Settings
@@ -55,6 +56,7 @@ float Brightness;
 Texture3D ShapeTexture;
 Texture3D DetailTexture;
 Texture2D CloudMap;
+Texture2D CurlNoiseTexture;
 Texture2D SceneTexture;
 Texture2D DepthTexture;
 RWTexture2D<float4> Output;
@@ -137,20 +139,21 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     // Animate clouds in wind direction and add a small upward bias to the wind direction
     inSamplePosition += (WindDirection + float3(0, 0.1, 0)) * Time * CloudSpeed;
     
-    float2 uv = GetUVProjection(inSamplePosition);
-    float2 staticUv = GetUVProjection(position);
+    float2 animatedUV = GetUVProjection(inSamplePosition);
+    float2 staticUV = GetUVProjection(position);
     
     const float cloudMapBaseScale = 6.0;
-    float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, staticUv * cloudMapBaseScale * CoverageRepeat, 0);
+    float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, staticUV * cloudMapBaseScale * CoverageRepeat, 0);
     
-    float loopTime = 10.0;
-    float t = mod(Time, loopTime) * (1.0 / loopTime);
-    // t = Slice;
-    float coverage = lerp(cloudMapSample.r, cloudMapSample.g, 1.0 - t);
-    float cloudType = lerp(cloudMapSample.b, cloudMapSample.a, 1.0 - t);
+    // float loopTime = 10.0;
+    // float t = mod(Time, loopTime) * (1.0 / loopTime);
+    // float coverage = lerp(cloudMapSample.r, cloudMapSample.g, 1.0 - t);
+    // float cloudType = lerp(cloudMapSample.b, cloudMapSample.a, 1.0 - t);
+    float coverage = cloudMapSample.r;
+    float cloudType = cloudMapSample.g;
     
     // Read the low-frequency Perlin-Worley noise and Worley noises.
-    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, float3(uv * 100.0 * ShapeNoiseScale, heightFraction), inMipLevel);
+    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, float3(animatedUV * 100.0 * ShapeNoiseScale, heightFraction), inMipLevel);
     
     // Build an FBM out of the low frequency Worley noises
     // that can be used to add detail to the low-frequency Perlin-Worley noise.
@@ -172,8 +175,17 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     
     if (inCheapSample == false)
     {
+        float3 detailNoiseUVW = float3(animatedUV * 200.0 * DetailNoiseScale, heightFraction);
+        
+        // Distort the sampling coordinates of detail texture to fake the swirly distortions from atmospheric turbulence
+        if (Curliness > 0.0)
+        {
+            float3 curlNoise = CurlNoiseTexture.SampleLevel(sLinearRepeat, animatedUV * 6.0, 0.0).rgb;
+            detailNoiseUVW.xy += curlNoise.bg * (1.0 - heightFraction) * Curliness;
+        }
+        
         // Sample high-frequency noises
-        float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, float3(uv * 200.0 * DetailNoiseScale, heightFraction), inMipLevel).rgb;
+        float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, detailNoiseUVW, inMipLevel).rgb;
     
         // Build high-frequency Worley noise FBM
         float highFreqFBM = dot(highFrequencyNoises, float3(0.625, 0.25, 0.125));
@@ -336,28 +348,31 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     if (any((float2) id.xy >= ViewportDimensions))
         return;
     
+    // Uncomment for texture previews
+    // float2 debugUV = InverseLerp((float2) id.xy, float2(0.0, 0.0), float2(512.0, 512.0));
+    // if (all(debugUV >= 0.0) && all(debugUV <= 1.0))
+    // {
+    //     float3 pos = float3(debugUV.x, Slice, debugUV.y);
+    //     Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), ChannelMask);
+    //     return;
+    // }
+    // Output[id.xy] = float4(1, 0, 1, 1);
+    // return;
+    
     if (ShowTextures)
     {
-        float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(276.0f, 276.0f));
-        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
-        {
-            float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
-            return;
-        }
-        
-        debugUV = InverseLerp((float2) id.xy, float2(290.0f, 20.0f), float2(560.0f, 276.0f));
-        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
-        {
-            float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
-            return;
-        }
-        
-        debugUV = InverseLerp((float2) id.xy, float2(600.0f, 20.0f), float2(876.0f, 276.0f));
+        float2 startUV = float2(10.0, 10.0);
+        float2 debugUV = InverseLerp((float2) id.xy, startUV, float2(256.0, 256.0) + startUV);
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
             Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), ChannelMask);
+            return;
+        }
+        
+        debugUV = InverseLerp((float2) id.xy, startUV + float2(276.0, 0.0), float2(256.0, 256.0) + startUV + float2(276.0, 0.0));
+        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        {
+            Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), float4(0, 1, 0, 0));
             return;
         }
     }
