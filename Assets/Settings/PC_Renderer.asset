@@ -48,35 +48,41 @@ MonoBehaviour:
   m_CloudsShader: {fileID: 7200000, guid: adc887142e632524e8357d7b124a873c, type: 3}
   m_CloudResourcesShader: {fileID: 7200000, guid: 3b1578aafded6614ab2e785191559d1b, type: 3}
   m_CloudsPassSettings:
+    OverrideCDF: 1
+    CloudsDataFields: {fileID: 11400000, guid: d1121deb362604140a94385ff942f0ba, type: 2}
+    General:
+      CoverageRepeat: 4
+      AnimateCoverage: 0
+      CloudMinHeight: 0.3
+      CloudMaxHeight: 0.75
+      GlobalDensity: 0.026
+    Wind:
+      WindAngle: 0
+      CloudSpeed: 0
+      CloudTopOffset: 100
+    Noise:
+      ShapeNoiseScale: 1.8
+      DetailNoiseScale: 2.69
+      DetailNoiseInfluence: 0.4
+      Curliness: 2.8
     PlanetRadius: 600000
-    AtmosphereBottomHeight: 3000
-    AtmosphereTopHeight: 7500
-    NumSteps: 128
+    NumSteps: 96
     LargeStepSizeMultiplier: 2
     UseJitter: 1
-    CoverageRepeat: 4
-    WindAngle: 204
-    CloudSpeed: 0
-    CloudTopOffset: 100
-    GlobalDensity: 0.026
-    ShapeNoiseScale: 1.8
-    DetailNoiseScale: 2.67
-    DetailNoiseInfluence: 0.4
     CurlNoise: {fileID: 2800000, guid: ceb60086f8d63274cb653e0c03977e69, type: 3}
-    Curliness: 2.8
-    Eccentricity: 0.4
-    SilverIntensity: 0.95
-    SilverSpread: 1
+    Eccentricity: 0.33
+    SilverIntensity: 1.38
+    SilverSpread: 0.5
     Brightness: 1.3
     ShowEarlyExit: 0
     ShowTextures: 0
-    Slice: 0.562
+    Slice: 0.634
     ActiveChannel: 0
   m_CloudResourcesSettings:
-    CloudTypeBase: 0.69
-    CumulusHighlight: 1.03
-    CoverageOffset: {x: -0.03, y: -0.72, z: -0.15}
-    CoverageStrength: 15
+    CloudTypeBase: 0.73
+    CumulusHighlight: 0.44
+    CoverageOffset: {x: 3.96, y: -0.09, z: -0.78}
+    CoverageStrength: 5.7
     RefreshResources: 0
 --- !u!114 &11400000
 MonoBehaviour:

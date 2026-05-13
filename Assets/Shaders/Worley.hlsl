@@ -92,7 +92,8 @@ float Cubed(float inV)
 float3 WorleyNoise2D(float2 inPosition, uint inFrequency, int inMetric)
 {
     // Scale and offset the position
-    inPosition = inPosition * inFrequency - float2(167798.0, 154416.0);
+    float2 offset = float2(16978.0, 7979.0);
+    inPosition = inPosition * inFrequency - offset;
     
     // Integer coordinates
     float2 iPos = floor(inPosition);
@@ -106,10 +107,13 @@ float3 WorleyNoise2D(float2 inPosition, uint inFrequency, int inMetric)
             // Integer coordinates of the current cell
             float2 currentCell = iPos + float2(ix, iy);
 
+            // -- Uncomment -- one or the other to get tiling/non-tiling noise
             float3 cellPoint = hash33(float3(mod(currentCell, inFrequency), 0.0));
             // float3 cellPoint = hash33(float3(currentCell, 0.0));
+            
             currentCell = inPosition - currentCell - cellPoint.xz;
 
+            // -- Uncomment -- for length vs length squared
             float currentDistance = length(currentCell);
             // float currentDistance = dot(currentCell, currentCell);
             
@@ -127,12 +131,17 @@ float3 WorleyNoise2D(float2 inPosition, uint inFrequency, int inMetric)
     
     float3 worley = 1.0 - saturate(f1);
     
-    // float thickness = 0.02;
-    // float2 grid = abs(frac(inPosition) * 2.0 - 1.0);
-    // if (smoothstep(thickness, thickness, 1. - max(grid.x, grid.y)) != 1.0)
-    //     worley = 1.0;
-    // if (f1 < 0.06)
-    //     worley.gb = 0.0;
+    // -- Uncomment -- to scale uv back to original (0 to 1 probably)
+    // inPosition += offset;
+    // inPosition /= inFrequency;
+    
+    // -- Uncomment -- for cell visualization
+    float thickness = 0.02;
+    float2 grid = abs(frac(inPosition) * 2.0 - 1.0);
+    if (smoothstep(thickness, thickness, 1. - max(grid.x, grid.y)) != 1.0)
+        worley = 1.0;
+    if (f1 < 0.06)
+        worley.gb = 0.0;
     
     return worley;
 }

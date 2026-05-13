@@ -1,5 +1,6 @@
 using Helpers;
 using System;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
@@ -14,8 +15,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 	[SerializeField] CloudsPassSettings m_CloudsPassSettings;
     [SerializeField] CloudResourcesPassSettings m_CloudResourcesSettings;
 
-    CloudsPass m_CloudsPass;
-	CloudResourcesPass m_CloudResourcesPass;
+    public CloudsPass m_CloudsPass;
+	public CloudResourcesPass m_CloudResourcesPass;
 
 	public RTHandle GetNoiseShape() => m_CloudResourcesPass?.CloudNoiseShape;
 	public RTHandle GetNoiseDetail() => m_CloudResourcesPass?.CloudNoiseDetail;
@@ -85,16 +86,20 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 	[Serializable]
     public class CloudsPassSettings
     {
+		[Tooltip("Setting this value to true will use the internal CDFs instead of CloudsDataFields")]
+		public bool OverrideCDF = false;
+
+		public CloudsDataFields CloudsDataFields;
+
+		[Header("Overriden CDFs")]
+		public GeneralCDFs General = new GeneralCDFs();
+		public WindCDFs Wind = new WindCDFs();
+		public NoiseCDFs Noise = new NoiseCDFs();
+
 		[Header("General")]
 
 		[Range(1000.0f, 1000000.0f), Tooltip("Planet's radius in meters")]
 		public float PlanetRadius = 60000.0f;
-
-		[Range(100.0f, 10000.0f)]
-		public float AtmosphereBottomHeight = 1500.0f;
-
-		[Range(100.0f, 10000.0f)]
-		public float AtmosphereTopHeight = 3000.0f;
 
 		[Range(8, 256), Tooltip("The maximum number of steps the raymarcher will take")]
 		public int NumSteps = 128;
@@ -105,40 +110,8 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Tooltip("Offsets the starting sample position during the ray march")]
 		public bool UseJitter = true;
 
-
-		[Header("Shape")]
-
-		[Range(1, 10)]
-		public int CoverageRepeat = 4;
-
-		[Range(0.0f, 360.0f), Tooltip("Angle of the global wind direction")]
-		public float WindAngle = 0.0f;
-
-		[Range(0.0f, 100.0f), Tooltip("Speed of the clouds")]
-		public float CloudSpeed = 1.0f;
-
-		[Range(0.0f, 250.0f), Tooltip("Pushes the tops of the clouds along the wind direction by this many units")]
-		public float CloudTopOffset = 100.0f;
-
-		[Range(0.0f, 1.0f)]
-		public float GlobalDensity = 0.021f;
-
-
-		[Header("Clouds")]
-
-		[Range(0.1f, 5.0f), Tooltip("Scale of the base cloud shape")]
-		public float ShapeNoiseScale = 0.3f;
-
-		[Range(0.1f, 5.0f), Tooltip("Scale of the cloud details")]
-		public float DetailNoiseScale = 0.3f;
-
-		[Range(0.0f, 1.0f)]
-		public float DetailNoiseInfluence = 0.4f;
-
 		public Texture2D CurlNoise;
 
-		[Range(0.0f, 50.0f)]
-		public float Curliness = 2.0f;
 
 		[Header("Phase")]
 
@@ -200,7 +173,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		public bool RefreshResources = false;
 	}
 
-	class CloudsPass : ScriptableRenderPass
+	public class CloudsPass : ScriptableRenderPass
     {
 		#region PassFields
 
@@ -215,6 +188,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		RTHandle m_CurlNoise;
 
 		readonly CloudsPassSettings m_Settings;
+		CloudsDataFields m_InternalCDFs = CreateInstance<CloudsDataFields>();
 
 		#endregion
 
@@ -231,11 +205,46 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 
 			m_NoiseShape = inNoiseShape;
 			m_NoiseDetail = inNoiseDetail;
-			m_CloudMap = inCloudMap;
 
-			requiresIntermediateTexture = true;
+			m_InternalCDFs.General = m_Settings.General;
+			m_InternalCDFs.Wind = m_Settings.Wind;
+			m_InternalCDFs.Noise = m_Settings.Noise;
+
+			if (m_Settings.OverrideCDF)
+				m_CloudMap = inCloudMap;
+			else
+				m_CloudMap = RTHandles.Alloc(m_Settings.CloudsDataFields.CloudMap);
 
 			m_CurlNoise = RTHandles.Alloc(m_Settings.CurlNoise);
+
+			requiresIntermediateTexture = true;
+		}
+
+		public void SaveCloudMapAsAsset()
+		{
+			RenderTexture rt = m_CloudMap.rt;
+			RenderTexture rtNew = new RenderTexture(rt.width, rt.height, 8, RenderTextureFormat.ARGB32);
+			Graphics.Blit(rt, rtNew);
+			
+			RenderTexture.active = rtNew;
+			Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false, true);
+			tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+			RenderTexture.active = null;
+			
+			byte[] bytes;
+			bytes = tex.EncodeToPNG();
+			
+			string path = "Assets/CloudMaps/CloudMap.png";
+			System.IO.File.WriteAllBytes(path, bytes);
+			AssetDatabase.ImportAsset(path);
+		}
+
+		public void SaveCDF()
+		{
+			SaveCloudMapAsAsset();
+
+			m_InternalCDFs.CloudMap = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/CloudMaps/CloudMap.png");
+			AssetDatabase.CreateAsset(m_InternalCDFs, "Assets/CDFs/CDF_FromCode.asset");
 		}
 
 		private class PassData
@@ -319,25 +328,30 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeVectorParam(m_Shader, "SunColor", inD.SunColor);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Time", Time.time);
 
+					// Which CDFs to use
+					CloudsDataFields CDFs = m_Settings.OverrideCDF ? m_InternalCDFs : m_Settings.CloudsDataFields;
+
+					const float AtmosphereMaxHeight = 10000.0f;
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "PlanetRadius", m_Settings.PlanetRadius);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "AtmosphereBottomHeight", m_Settings.AtmosphereBottomHeight);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "AtmosphereTopHeight", m_Settings.AtmosphereTopHeight);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "AtmosphereBottomHeight", CDFs.General.CloudMinHeight * AtmosphereMaxHeight);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "AtmosphereTopHeight", CDFs.General.CloudMaxHeight * AtmosphereMaxHeight);
 
 					inCtx.cmd.SetComputeIntParam(m_Shader, "NumSteps", m_Settings.NumSteps);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "LargeStepSizeMultiplier", m_Settings.LargeStepSizeMultiplier);
 					inCtx.cmd.SetComputeIntParam(m_Shader, "UseJitter", m_Settings.UseJitter ? 1 : 0);
 
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "GlobalDensity", m_Settings.GlobalDensity);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "ShapeNoiseScale", m_Settings.ShapeNoiseScale);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseScale", m_Settings.DetailNoiseScale);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseInfluence", m_Settings.DetailNoiseInfluence);
-					inCtx.cmd.SetComputeIntParam(m_Shader, "CoverageRepeat", m_Settings.CoverageRepeat);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "Curliness", m_Settings.Curliness);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "GlobalDensity", CDFs.General.GlobalDensity);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "ShapeNoiseScale", CDFs.Noise.ShapeNoiseScale);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseScale", CDFs.Noise.DetailNoiseScale);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "DetailNoiseInfluence", CDFs.Noise.DetailNoiseInfluence);
+					inCtx.cmd.SetComputeIntParam(m_Shader, "CoverageRepeat", CDFs.General.CoverageRepeat);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "Curliness", CDFs.Noise.Curliness);
 
-					Vector3 windDirection = new Vector3(Mathf.Cos(m_Settings.WindAngle * Mathf.Deg2Rad), 0, -Mathf.Sin(m_Settings.WindAngle * Mathf.Deg2Rad));
+					Vector3 windDirection = new Vector3(Mathf.Cos(CDFs.Wind.WindAngle * Mathf.Deg2Rad), 0, -Mathf.Sin(CDFs.Wind.WindAngle * Mathf.Deg2Rad));
 					inCtx.cmd.SetComputeVectorParam(m_Shader, "WindDirection", windDirection);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudSpeed", m_Settings.CloudSpeed);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudTopOffset", m_Settings.CloudTopOffset);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudSpeed", CDFs.Wind.CloudSpeed);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "CloudTopOffset", CDFs.Wind.CloudTopOffset);
+					inCtx.cmd.SetComputeIntParam(m_Shader, "AnimateCoverage", CDFs.General.AnimateCoverage ? 1 : 0);
 					
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Eccentricity", m_Settings.Eccentricity);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "SilverIntensity", m_Settings.SilverIntensity);
@@ -367,7 +381,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		}
     }
 
-	class CloudResourcesPass : ScriptableRenderPass
+	public class CloudResourcesPass : ScriptableRenderPass
 	{
 		#region PassFields
 

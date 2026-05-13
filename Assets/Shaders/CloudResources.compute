@@ -50,13 +50,15 @@ float CloudCoveragePerlin(float3 inUVW, float3 inBaseOffset, float inBaseStrengt
 {
     // A low frequency noise modulates cloud coverage to simulate the 
     // large regions where air masses overlap and clouds are allowed to form.
-    float lowFreqBase = PerlinFBM(inUVW + inBaseOffset, 4, 6, false);
-    lowFreqBase = Remap(lowFreqBase, -0.12, 1.0, 0.0, inBaseStrength);
+    float lowFreqBase = PerlinFBM(inUVW + inBaseOffset, 3, 4, false);
+    lowFreqBase = Remap(lowFreqBase, -0.2, 1.0, 0.0, inBaseStrength);
     
-    float perlin = PerlinFBM(inUVW + float3(0.1, 0.5, 0.3), 5, 5, false);
-    perlin = Remap(perlin, -0.6, 0.6, 0.0, 0.7);
+    // lowFreqBase *= PerlinWorleyDecima(inUVW, 8, 6);
     
-    return lowFreqBase * perlin * 0.8;
+    float all = AlligatorDecima(inUVW, 4);
+    return all * lowFreqBase;
+    
+    return lowFreqBase;
 }
 
 float CloudCoverageWorley(float3 inUVW)
@@ -74,6 +76,7 @@ float CloudCoverageWorley(float3 inUVW)
 float CloudTypeAlligator(float3 inUVW, float inCloudTypeBase, float inCumulusHighlight)
 {
     float cloudType = AlligatorFBM(inUVW, 8, 6);
+    cloudType = AlligatorDecima(inUVW, 6);
     
     // Raises the lower values
     cloudType = pow(cloudType, inCloudTypeBase);
@@ -103,7 +106,7 @@ void CloudMapCS(uint3 id : SV_DispatchThreadID)
     float3 uvw = TexelToUV(id, ResolutionInv);
     
     float coverage1 = CloudCoveragePerlin(uvw, CoverageOffset, CoverageStrength);
-    // float3 w = WorleyNoise2D(uvw.xy, 6, 0);
+    float3 w = WorleyNoise2D(uvw.xy, 6, 0);
     float coverage2 = CloudCoveragePerlin(uvw, 0.0, 10.0);
     
     // For cloud type we use the billows of alligator noise.
@@ -119,6 +122,6 @@ void CloudMapCS(uint3 id : SV_DispatchThreadID)
     float w2 = 1.0 - WorleyFBM(uvw + float3(0, 0, CloudTypeBase), 10, 1, 0);
     float w3 = 1.0 - WorleyFBM(uvw + float3(0, 0, CloudTypeBase), 10, 2, 0);
         
-    OutputMap[id.xy] = saturate(float4(coverage1, cloudType1, 0.0, 0.0));
-    // OutputMap[id.xy] = saturate(float4(w1, w2, w3, 0));
+    // OutputMap[id.xy] = saturate(float4(coverage1, cloudType1, 0.0, 0.0));
+    OutputMap[id.xy] = saturate(float4(w, 0));
 }
