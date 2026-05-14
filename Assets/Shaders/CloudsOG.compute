@@ -354,15 +354,15 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         return;
     
     // Uncomment for texture previews
-    float2 debugUV = InverseLerp((float2) id.xy, float2(0.0, 0.0), float2(512.0, 512.0));
-    if (all(debugUV >= 0.0) && all(debugUV <= 1.0))
-    {
-        float3 pos = float3(debugUV.x, Slice, debugUV.y);
-        Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), ChannelMask);
-        return;
-    }
-    Output[id.xy] = float4(1, 0, 1, 1);
-    return;
+    // float2 debugUV = InverseLerp((float2) id.xy, float2(0.0, 0.0), float2(512.0, 512.0));
+    // if (all(debugUV >= 0.0) && all(debugUV <= 1.0))
+    // {
+    //     float3 pos = float3(debugUV.x, Slice, debugUV.y);
+    //     Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), ChannelMask);
+    //     return;
+    // }
+    // Output[id.xy] = float4(1, 0, 1, 1);
+    // return;
     
     if (ShowTextures)
     {

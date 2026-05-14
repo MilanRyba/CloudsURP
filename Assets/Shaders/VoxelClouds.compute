@@ -107,7 +107,7 @@ float MetaballAttenuation(float inDistanceFromCenter)
     
     // To use the field function as basis function, 
     // we normalize it by its total density
-    float normalizingFactor = (748.0 / 405.0) * PI * _MetaballRadius /* * 0.2 */;
+    float normalizingFactor = (748.0 / 405.0) * PI * _MetaballRadius  * 0.69;
     
     return fieldFunction / normalizingFactor;
 }

@@ -237,8 +237,6 @@ void SmoothDensityCS(uint3 inVoxelCoords : SV_DispatchThreadID)
     
     // Define the sizes for the smoothing
     int3 smoothSizes = int3(1, 1, 1);
-    // smoothSizes = int3(2, 2, 2);
-    // smoothSizes = int3(0, 0, 0);
     float density = 0.0;
     
     for (int z = -smoothSizes.z; z <= smoothSizes.z; z++)

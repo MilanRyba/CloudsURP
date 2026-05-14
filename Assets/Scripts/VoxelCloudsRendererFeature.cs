@@ -5,13 +5,13 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
-using static VoxelSpace;
+using static CloudsVoxelDataFields;
 
 public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 {
     [SerializeField] ComputeShader m_VoxelCloudsShader;
     [SerializeField] ComputeShader m_SimulationShader;
-	[SerializeField] VoxelSpace m_VoxelSpace;
+	[SerializeField] CloudsVoxelDataFields m_CloudsVoxelDataFields;
 
 	[SerializeField] VoxelCloudsPassSettings m_VoxelCloudsPassSettings;
 	[SerializeField] SimulationPassSettings m_SimulationPassSettings;
@@ -28,8 +28,8 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 	// (Create() is not called when Renderer Feature overrides the OnValidate() method which is called instead)
 	public override void Create()
     {
-		m_VoxelCloudsPass = new VoxelCloudsPass(m_VoxelSpace, m_VoxelCloudsPassSettings);
-        m_SimulationPass = new SimulationPass(m_SimulationShader, m_VoxelSpace, m_SimulationPassSettings);
+		m_VoxelCloudsPass = new VoxelCloudsPass(m_CloudsVoxelDataFields, m_VoxelCloudsPassSettings);
+        m_SimulationPass = new SimulationPass(m_SimulationShader, m_CloudsVoxelDataFields, m_SimulationPassSettings);
 
 		Debug.Log("Created VoxelCloudsRendererFeature.");
     }
@@ -132,14 +132,14 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 
 		RTHandle m_SmoothDensity;
 
-		readonly VoxelSpace m_VoxelSpace;
+		readonly CloudsVoxelDataFields m_CVDFs;
 		readonly VoxelCloudsPassSettings m_Settings;
 
 		#endregion
 
-		public VoxelCloudsPass(VoxelSpace inVoxelSpace, VoxelCloudsPassSettings inSettings)
+		public VoxelCloudsPass(CloudsVoxelDataFields inVoxelSpace, VoxelCloudsPassSettings inSettings)
 		{
-			m_VoxelSpace = inVoxelSpace;
+			m_CVDFs = inVoxelSpace;
 			m_Settings = inSettings;
 			renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
 		}
@@ -247,11 +247,11 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowTextures", m_Settings.ShowTextures ? 1 : 0);
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "Slice", m_Settings.Slice);
 
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "_MetaballRadius", m_Settings.MetaballRadius * m_VoxelSpace.VoxelSize);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "_MetaballRadius", m_Settings.MetaballRadius * m_CVDFs.Space.VoxelSize);
 
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "_VoxelSize", m_VoxelSpace.VoxelSize);
-					inCtx.cmd.SetComputeVectorParam(m_Shader, "_VoxelGridResolution", m_VoxelSpace.VoxelGridResolution);
-					inCtx.cmd.SetComputeVectorParam(m_Shader, "_VoxelGridOrigin", m_VoxelSpace.VoxelGridOrigin);
+					inCtx.cmd.SetComputeFloatParam(m_Shader, "_VoxelSize", m_CVDFs.Space.VoxelSize);
+					inCtx.cmd.SetComputeVectorParam(m_Shader, "_VoxelGridResolution", m_CVDFs.Space.VoxelGridResolution);
+					inCtx.cmd.SetComputeVectorParam(m_Shader, "_VoxelGridOrigin", m_CVDFs.Space.VoxelGridOrigin);
 
 					GraphicsHelper.Dispatch(inCtx, m_Shader, m_Kernel, (int)inD.ViewportDimensions.x, (int)inD.ViewportDimensions.y);
 				});
@@ -279,7 +279,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 
 		GraphicsBuffer m_EllipsoidsBuffer;
 
-		readonly VoxelSpace m_VoxelSpace;
+		readonly CloudsVoxelDataFields m_CVDFs;
 		readonly SimulationPassSettings m_Settings;
 
 		Vector3Int m_ByteSpace;
@@ -291,9 +291,9 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 
 		public RTHandle SmoothDensity => m_SmoothDensity;
 
-		public SimulationPass(ComputeShader inShader, VoxelSpace inVoxelSpace, SimulationPassSettings inSettings)
+		public SimulationPass(ComputeShader inShader, CloudsVoxelDataFields inVoxelSpace, SimulationPassSettings inSettings)
         {
-			m_VoxelSpace = inVoxelSpace;
+			m_CVDFs = inVoxelSpace;
             m_Settings = inSettings;
             renderPassEvent = RenderPassEvent.BeforeRendering;
 
@@ -303,27 +303,27 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 			m_KernelSimulation = m_Shader.FindKernel("SimulationCS");
 			m_KernelSmoothDensity = m_Shader.FindKernel("SmoothDensityCS");
 
-			m_ByteSpace = m_VoxelSpace.VoxelGridResolutionInt;
+			m_ByteSpace = m_CVDFs.Space.VoxelGridResolutionInt;
 			m_ByteSpace.y /= 8;
 
 			// Create automatons and textures
 			GraphicsHelper.CreateAutomaton(ref m_TextureCurrent, m_ByteSpace, "_Automaton1");
 			GraphicsHelper.CreateAutomaton(ref m_TextureNext, m_ByteSpace, "_Automaton2");
 
-			var desc = new RenderTextureDescriptor(m_VoxelSpace.NumVoxelsX, m_VoxelSpace.NumVoxelsY, GraphicsFormat.R16_UNorm, 0);
-			desc.volumeDepth = m_VoxelSpace.NumVoxelsZ;
+			var desc = new RenderTextureDescriptor(m_CVDFs.Space.NumVoxelsX, m_CVDFs.Space.NumVoxelsY, GraphicsFormat.R16_UNorm, 0);
+			desc.volumeDepth = m_CVDFs.Space.NumVoxelsZ;
 			desc.useMipMap = false;
 			GraphicsHelper.CreateWriteable3D(ref m_SmoothDensity, desc, "_SmoothDensity");
 		}
 
 		public void Setup()
 		{
-			if (m_EllipsoidsBuffer == null || m_EllipsoidsBuffer.count != m_VoxelSpace.NumEllipsoids)
+			if (m_EllipsoidsBuffer == null || m_EllipsoidsBuffer.count != m_CVDFs.NumEllipsoids)
 			{
 				m_EllipsoidsBuffer?.Release();
-				m_EllipsoidsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, m_VoxelSpace.NumEllipsoids, GraphicsHelper.GetStride<Ellipsoid>());
+				m_EllipsoidsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, m_CVDFs.NumEllipsoids, GraphicsHelper.GetStride<Ellipsoid>());
 			}
-			m_EllipsoidsBuffer.SetData(m_VoxelSpace.Ellipsoids);
+			m_EllipsoidsBuffer.SetData(m_CVDFs.Ellipsoids);
 		}
 
 		private class PassData
@@ -379,11 +379,11 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 						inCtx.cmd.SetComputeBufferParam(inD.Shader, inD.Kernel, "_Ellipsoids", inD.EllipsoidsBuffer);
 						m_Shader.SetInt("_NumEllipsoids", m_EllipsoidsBuffer.count);
 				
-						inCtx.cmd.SetComputeFloatParam(inD.Shader, "_VoxelSize", m_VoxelSpace.VoxelSize);
-						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridResolution", m_VoxelSpace.VoxelGridResolution);
-						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridOrigin", m_VoxelSpace.VoxelGridOrigin);
+						inCtx.cmd.SetComputeFloatParam(inD.Shader, "_VoxelSize", m_CVDFs.Space.VoxelSize);
+						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridResolution", m_CVDFs.Space.VoxelGridResolution);
+						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridOrigin", m_CVDFs.Space.VoxelGridOrigin);
 				
-						inCtx.cmd.SetComputeIntParam(inD.Shader, "_Volume", m_VoxelSpace.Volume);
+						inCtx.cmd.SetComputeIntParam(inD.Shader, "_Volume", m_CVDFs.Space.Volume);
 
 						Vector2 cloudDirection = new Vector2(m_Settings.CloudDirection.x, m_Settings.CloudDirection.y);
 						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_CloudDirection", cloudDirection);
@@ -416,11 +416,11 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 						inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "_AutomatonTo", inD.AutomatonTo);
 						inCtx.cmd.SetComputeTextureParam(inD.Shader, inD.Kernel, "_SmoothDensity", inD.SmoothDensity);
 				
-						inCtx.cmd.SetComputeFloatParam(inD.Shader, "_VoxelSize", m_VoxelSpace.VoxelSize);
-						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridResolution", m_VoxelSpace.VoxelGridResolution);
-						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridOrigin", m_VoxelSpace.VoxelGridOrigin);
+						inCtx.cmd.SetComputeFloatParam(inD.Shader, "_VoxelSize", m_CVDFs.Space.VoxelSize);
+						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridResolution", m_CVDFs.Space.VoxelGridResolution);
+						inCtx.cmd.SetComputeVectorParam(inD.Shader, "_VoxelGridOrigin", m_CVDFs.Space.VoxelGridOrigin);
 				
-						GraphicsHelper.Dispatch(inCtx, inD.Shader, inD.Kernel, m_VoxelSpace.VoxelGridResolutionInt);
+						GraphicsHelper.Dispatch(inCtx, inD.Shader, inD.Kernel, m_CVDFs.Space.VoxelGridResolutionInt);
 					});
 				}
 			}
