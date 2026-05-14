@@ -135,7 +135,7 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     float3 position = inSamplePosition;
     
     // Skew in wind direction
-    inSamplePosition += heightFraction * WindDirection * CloudTopOffset;
+    inSamplePosition += heightFraction * WindDirection * CloudTopOffset * 5;
     
     // Animate clouds in wind direction and add a small upward bias to the wind direction
     inSamplePosition += (WindDirection + float3(0, 0.1, 0)) * Time * CloudSpeed;
@@ -146,12 +146,8 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     const float cloudMapBaseScale = 6.0;
     
     float2 coverageUV = AnimateCoverage ? animatedUV : staticUV;
-    float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, coverageUV * cloudMapBaseScale * CoverageRepeat + float2(0.1, Slice), 0);
+    float4 cloudMapSample = CloudMap.SampleLevel(sLinearRepeat, coverageUV * cloudMapBaseScale * CoverageRepeat, 0);
     
-    // float loopTime = 10.0;
-    // float t = mod(Time, loopTime) * (1.0 / loopTime);
-    // float coverage = lerp(cloudMapSample.r, cloudMapSample.g, 1.0 - t);
-    // float cloudType = lerp(cloudMapSample.b, cloudMapSample.a, 1.0 - t);
     float coverage = cloudMapSample.r;
     float cloudType = cloudMapSample.g;
     
