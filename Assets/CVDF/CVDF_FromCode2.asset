@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 62cfa26b2747c9c4e9bc7d477218f8fb, type: 3}
-  m_Name: CVDF_FromCode
+  m_Name: CVDF_FromCode2
   m_EditorClassIdentifier: Assembly-CSharp::CloudsVoxelDataFields
   Space:
     WorldExtents: {x: 512, y: 64, z: 512}

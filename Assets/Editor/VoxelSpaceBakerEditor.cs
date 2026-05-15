@@ -21,7 +21,7 @@ public class VoxelSpaceBakerEditor : Editor
 			baker.Refresh();
 		}
 
-		if (GUILayout.Button("Save As Voxel Space"))
+		if (GUILayout.Button("Save As CVDF"))
 		{
 			baker.SaveAsCVDF();
 		}
