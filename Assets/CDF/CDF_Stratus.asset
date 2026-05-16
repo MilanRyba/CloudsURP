@@ -18,7 +18,7 @@ MonoBehaviour:
     AnimateCoverage: 1
     CloudMinHeight: 0.3
     CloudMaxHeight: 0.6
-    GlobalDensity: 0.033
+    GlobalDensity: 0.035
   Wind:
     WindAngle: 142
     CloudSpeed: 0

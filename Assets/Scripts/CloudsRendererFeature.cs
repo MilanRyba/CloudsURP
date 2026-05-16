@@ -223,20 +223,34 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		public void SaveCloudMapAsAsset()
 		{
 			RenderTexture rt = m_CloudMap.rt;
-			RenderTexture rtNew = new RenderTexture(rt.width, rt.height, 8, RenderTextureFormat.ARGB32);
-			Graphics.Blit(rt, rtNew);
-			
-			RenderTexture.active = rtNew;
-			Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false, true);
+
+			RenderTexture.active = rt;
+			Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);
 			tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
 			RenderTexture.active = null;
-			
+
 			byte[] bytes;
 			bytes = tex.EncodeToPNG();
-			
+
 			string path = "Assets/CloudMaps/CloudMap.png";
 			System.IO.File.WriteAllBytes(path, bytes);
 			AssetDatabase.ImportAsset(path);
+
+			// RenderTexture rt = m_CloudMap.rt;
+			// RenderTexture rtNew = new RenderTexture(rt.width, rt.height, 8, RenderTextureFormat.ARGB32);
+			// Graphics.Blit(rt, rtNew);
+			// 
+			// RenderTexture.active = rtNew;
+			// Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false, true);
+			// tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+			// RenderTexture.active = null;
+			// 
+			// byte[] bytes;
+			// bytes = tex.EncodeToPNG();
+			// 
+			// string path = "Assets/CloudMaps/CloudMap.png";
+			// System.IO.File.WriteAllBytes(path, bytes);
+			// AssetDatabase.ImportAsset(path);
 		}
 
 		public void SaveCDF()

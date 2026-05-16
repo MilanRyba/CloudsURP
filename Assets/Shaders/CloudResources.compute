@@ -46,19 +46,19 @@ void CloudNoiseDetailCS(uint3 id : SV_DispatchThreadID)
     OutputNoise[id] = float4(worleyFBM0, worleyFBM1, worleyFBM2, 1.0);
 }
 
-float CloudCoverageStratus(float3 inUVW, float3 inBaseOffset /*0.07, 0.08, 0.0*/, float inBaseStrength /*5*/)
+float CloudCoverageStratus(float3 inUVW)
 {
     // Cloud Type Base = 0.2
     // Cumulus Highlight = 0.21
     
-    float all = AlligatorDecima(inUVW + inBaseOffset, 2);
-    all = Remap(all, 0.0, 1.0, 0.0, inBaseStrength);
+    float all = AlligatorDecima(inUVW + float3(0.07, 0.08, 0.0), 2);
+    all = Remap(all, 0.0, 1.0, 0.0, 5.0);
     
-    float all2 = AlligatorDecima(inUVW + inBaseOffset, 4);
-    all2 = Remap(all2, 0.0, 1.0, 0.0, inBaseStrength * 0.25);
+    float all2 = AlligatorDecima(inUVW + float3(0.07, 0.08, 0.0), 4);
+    all2 = Remap(all2, 0.0, 1.0, 0.0, 5.0 * 0.25);
     
-    float all3 = AlligatorDecima(inUVW + inBaseOffset, 5);
-    all3 = Remap(all3, 0.0, 1.0, 0.0, inBaseStrength * 0.07);
+    float all3 = AlligatorDecima(inUVW + float3(0.07, 0.08, 0.0), 5);
+    all3 = Remap(all3, 0.0, 1.0, 0.0, 5.0 * 0.07);
     
     return all * all2 + all3;
 }
@@ -122,7 +122,8 @@ void CloudMapCS(uint3 id : SV_DispatchThreadID)
 {
     float3 uvw = TexelToUV(id, ResolutionInv);
     
-    float coverage1 = CloudCoverageStratus(uvw, CoverageOffset, CoverageStrength);
+    float coverage1 = CloudCoverageStratus(uvw);
+    coverage1 = CloudCoverageStratocumulus(uvw);
     float3 w = WorleyNoise2D(uvw.xy, 6, 0);
     
     // For cloud type we use the billows of alligator noise.
@@ -132,7 +133,7 @@ void CloudMapCS(uint3 id : SV_DispatchThreadID)
     
     // Found out that using higher frequencies looks better. Six octaves for a full FBM.
     float cloudType1 = CloudTypeAlligator(uvw, CloudTypeBase, CumulusHighlight);
-    cloudType1 = CloudTypePerlin(uvw, CloudTypeBase, CumulusHighlight);
+    // cloudType1 = CloudTypePerlin(uvw, CloudTypeBase, CumulusHighlight);
     
     
     float w1 = WorleyFBM(uvw + float3(0, 0, CloudTypeBase), 10, 1, 3);

@@ -15,7 +15,7 @@ MonoBehaviour:
   m_Active: 0
   m_VoxelCloudsShader: {fileID: 7200000, guid: 5791b1bdb7a62dd4389dfabe7830416f, type: 3}
   m_SimulationShader: {fileID: 7200000, guid: d22698f12394b7e4eb9424e820834edd, type: 3}
-  m_CloudsVoxelDataFields: {fileID: 11400000, guid: 1559db5f76cf97b4abff073e20c18d91, type: 2}
+  m_CloudsVoxelDataFields: {fileID: 11400000, guid: 3900700ad85a0b44ca8f6eb9e687b3d9, type: 2}
   m_VoxelCloudsPassSettings:
     NumSteps: 128
     LargeStepSizeMultiplier: 3
@@ -44,27 +44,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f5871cdc3552dc2419c2f7332d7314cb, type: 3}
   m_Name: CloudsRendererFeature
   m_EditorClassIdentifier: Assembly-CSharp::CloudsRendererFeature
-  m_Active: 0
+  m_Active: 1
   m_CloudsShader: {fileID: 7200000, guid: adc887142e632524e8357d7b124a873c, type: 3}
   m_CloudResourcesShader: {fileID: 7200000, guid: 3b1578aafded6614ab2e785191559d1b, type: 3}
   m_CloudsPassSettings:
-    OverrideCDF: 0
+    OverrideCDF: 1
     CloudsDataFields: {fileID: 11400000, guid: 5b2aea44221e2904db2c7bfbce113323, type: 2}
     General:
       CoverageRepeat: 4
       AnimateCoverage: 1
-      CloudMinHeight: 0.3
-      CloudMaxHeight: 0.6
-      GlobalDensity: 0.033
+      CloudMinHeight: 0.362
+      CloudMaxHeight: 0.735
+      GlobalDensity: 0.028
     Wind:
-      WindAngle: 142
+      WindAngle: 0
       CloudSpeed: 0
-      CloudTopOffset: 176
+      CloudTopOffset: 250
     Noise:
       ShapeNoiseScale: 1.8
       DetailNoiseScale: 2.69
       DetailNoiseInfluence: 0.36
-      Curliness: 7.9
+      Curliness: 5.9
     PlanetRadius: 600000
     NumSteps: 128
     LargeStepSizeMultiplier: 2
@@ -72,18 +72,18 @@ MonoBehaviour:
     CurlNoise: {fileID: 2800000, guid: ceb60086f8d63274cb653e0c03977e69, type: 3}
     Eccentricity: 0.33
     SilverIntensity: 1.45
-    SilverSpread: 0.5
+    SilverSpread: 0.3
     Brightness: 0.9
     ShowEarlyExit: 0
-    ShowTextures: 0
-    Slice: 0.5
-    ActiveChannel: 1
+    ShowTextures: 1
+    Slice: 0.511
+    ActiveChannel: 0
   m_CloudResourcesSettings:
-    CloudTypeBase: 2
-    CumulusHighlight: 0.21
-    CoverageOffset: {x: 0.07, y: 0.08, z: 0}
-    CoverageStrength: 5
-    RefreshResources: 1
+    CloudTypeBase: 0.82
+    CumulusHighlight: 0.47
+    CoverageOffset: {x: 3.96, y: -0.09, z: -0.78}
+    CoverageStrength: 5.7
+    RefreshResources: 0
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
