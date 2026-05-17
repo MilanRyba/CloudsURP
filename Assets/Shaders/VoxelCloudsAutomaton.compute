@@ -7,8 +7,6 @@
 Texture3D<uint4> _AutomatonFrom;
 RWTexture3D<uint4> _AutomatonTo;
 
-RWStructuredBuffer<float3> _Positions;
-
 RWTexture3D<float> _SmoothDensity;
 
 struct Ellipsoid

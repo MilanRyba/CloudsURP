@@ -21,7 +21,7 @@ MonoBehaviour:
     GlobalDensity: 0.035
   Wind:
     WindAngle: 142
-    CloudSpeed: 0
+    CloudSpeed: 100
     CloudTopOffset: 176
   Noise:
     ShapeNoiseScale: 1.8

@@ -446,7 +446,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			GraphicsFormat format = GraphicsFormat.R8G8B8A8_UNorm;
 			GraphicsHelper.CreateNoise3D(ref m_HandleNoiseShape, m_ResNoiseShape, format, "_CloudShapeNoise3D");
 			GraphicsHelper.CreateNoise3D(ref m_HandleNoiseDetail, m_ResNoiseDetail, format, "_CloudDetailNoise3D");
-			GraphicsHelper.CreateNoise2D(ref m_HandleCloudMap, m_ResCloudMap, format, "_CloudMap");
+			GraphicsHelper.CreateNoise2D(ref m_HandleCloudMap, m_ResCloudMap, GraphicsFormat.R8G8_UNorm, "_CloudMap");
 		}
 
 		private class PassData

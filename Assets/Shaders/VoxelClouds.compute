@@ -112,7 +112,7 @@ float MetaballAttenuation(float inDistanceFromCenter)
     return fieldFunction / normalizingFactor;
 }
 
-float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipLevel)
+float SampleCloudDensity(float3 inSamplePosition)
 {
     int3 ogVoxelCoords = VoxelCoordsFromWorldPosition(inSamplePosition);
     
@@ -146,25 +146,25 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     return saturate(density * GlobalDensity);
 }
 
-// float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipLevel)
-// {
-//     // Get density at the current voxel
-//     int3 voxelCoords = VoxelCoordsFromWorldPosition(inSamplePosition);
-//     float sampledDensity = SmoothDensity[voxelCoords];
-//     
-//     // If density at the current voxel is 0, leave
-//     if (sampledDensity == 0.0)
-//         return 0.0;
-//     
-//     // Get world position of voxel's center and its distance to sample position
-//     float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords);
-//     float dist = distance(inSamplePosition, voxelCenter);
-//     
-//     // Remap the distance so that the falloff factor is 1 at voxel center and 0 at its sides
-//     float distanceFalloff = Remap(dist, 0.0, _VoxelSize * 0.5, 1.0, 0.0);
-//     
-//     return saturate(distanceFalloff * sampledDensity * GlobalDensity);
-// }
+float SampleCloudDensity1(float3 inSamplePosition)
+{
+    // Get density at the current voxel
+    int3 voxelCoords = VoxelCoordsFromWorldPosition(inSamplePosition);
+    float sampledDensity = SmoothDensity[voxelCoords];
+    
+    // If density at the current voxel is 0, leave
+    if (sampledDensity == 0.0)
+        return 0.0;
+    
+    // Get world position of voxel's center and its distance to sample position
+    float3 voxelCenter = WorldPositionFromVoxelCoords(voxelCoords);
+    float dist = distance(inSamplePosition, voxelCenter);
+    
+    // Remap the distance so that the falloff factor is 1 at voxel center and 0 at its sides
+    float distanceFalloff = Remap(dist, 0.0, _VoxelSize * 0.5, 1.0, 0.0);
+    
+    return saturate(distanceFalloff * sampledDensity * GlobalDensity);
+}
 
 static const float3 NOISE_KERNEL[6] =
 {
@@ -191,7 +191,7 @@ float SampleDensityToSun(float3 inSamplePosition, float3 inDirection, CloudRende
         samplePos += inDirection * inRaymarchInfo.mStepSize;
         samplePos += inRaymarchInfo.mStepSize * NOISE_KERNEL[i] * float(i + 1);
         
-        densityToSun += SampleCloudDensity(samplePos, false, int(i * 0.0));
+        densityToSun += SampleCloudDensity(samplePos);
     }
     
     return densityToSun * inRaymarchInfo.mStepSize;
@@ -253,7 +253,7 @@ void RaymarchVoxelClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegm
             // LongSteps = false;
             
             // Sample density the expensive way by setting the last parameter to false, indicating a full sample
-            float sampledDensity = SampleCloudDensity(samplePos, false, 0);
+            float sampledDensity = SampleCloudDensity(samplePos);
                 
             // If we just sampled a zero and the previous sample was zero, increment the counter
             if (sampledDensity == 0.0)
@@ -296,7 +296,7 @@ void RaymarchVoxelClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegm
         else
         {
             // Sample density the cheap way, only using the low-frequency noise
-            cloudTest = SampleCloudDensity(samplePos, true, 0);
+            cloudTest = SampleCloudDensity(samplePos);
             
             if (cloudTest == 0.0)
                 raymarchInfo.mDistance += raymarchInfo.mStepSize * LargeStepSizeMultiplier;

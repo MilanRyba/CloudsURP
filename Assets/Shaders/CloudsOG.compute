@@ -129,7 +129,7 @@ float2 GetUVProjection(float3 inPosition)
     return inPosition.xz / CLOUDS_BOTTOM_LAYER + 0.5;
 }
 
-float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipLevel)
+float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample)
 {
     float heightFraction = GetHeightFractionForPoint(inSamplePosition);
     float3 position = inSamplePosition;
@@ -152,7 +152,7 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
     float cloudType = cloudMapSample.g;
     
     // Read the low-frequency Perlin-Worley noise and Worley noises.
-    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, float3(animatedUV * 100.0 * ShapeNoiseScale, heightFraction), inMipLevel);
+    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, float3(animatedUV * 100.0 * ShapeNoiseScale, heightFraction), 0);
     
     // Build an FBM out of the low frequency Worley noises
     // that can be used to add detail to the low-frequency Perlin-Worley noise.
@@ -184,7 +184,7 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample, int inMipL
         }
         
         // Sample high-frequency noises
-        float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, detailNoiseUVW, inMipLevel).rgb;
+        float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, detailNoiseUVW, 0).rgb;
     
         // Build high-frequency Worley noise FBM
         float highFreqFBM = dot(highFrequencyNoises, float3(0.625, 0.25, 0.125));
@@ -226,7 +226,7 @@ float SampleDensityToSun(float3 inSamplePosition, float3 inDirection, CloudRende
         samplePos += inDirection * inRaymarchInfo.mStepSize;
         samplePos += inRaymarchInfo.mStepSize * NOISE_KERNEL[i] * float(i + 1);
         
-        densityToSun += SampleCloudDensity(samplePos, false, int(i * 0.0));
+        densityToSun += SampleCloudDensity(samplePos, false);
     }
     
     return densityToSun * inRaymarchInfo.mStepSize;
@@ -290,7 +290,7 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
             // LongSteps = false;
             
             // Sample density the expensive way by setting the last parameter to false, indicating a full sample
-            float sampledDensity = SampleCloudDensity(samplePos, false, 0);
+            float sampledDensity = SampleCloudDensity(samplePos, false);
                 
             // If we just sampled a zero and the previous sample was zero, increment the counter
             if (sampledDensity == 0.0)
@@ -333,7 +333,7 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
         else
         {
             // Sample density the cheap way, only using the low-frequency noise
-            cloudTest = SampleCloudDensity(samplePos, true, 0);
+            cloudTest = SampleCloudDensity(samplePos, true);
             
             if (cloudTest == 0.0)
                 raymarchInfo.mDistance += raymarchInfo.mStepSize * LargeStepSizeMultiplier;

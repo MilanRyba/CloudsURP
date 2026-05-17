@@ -310,7 +310,7 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 			GraphicsHelper.CreateAutomaton(ref m_TextureCurrent, m_ByteSpace, "_Automaton1");
 			GraphicsHelper.CreateAutomaton(ref m_TextureNext, m_ByteSpace, "_Automaton2");
 
-			var desc = new RenderTextureDescriptor(m_CVDFs.Space.NumVoxelsX, m_CVDFs.Space.NumVoxelsY, GraphicsFormat.R16_UNorm, 0);
+			var desc = new RenderTextureDescriptor(m_CVDFs.Space.NumVoxelsX, m_CVDFs.Space.NumVoxelsY, GraphicsFormat.R8_UNorm, 0);
 			desc.volumeDepth = m_CVDFs.Space.NumVoxelsZ;
 			desc.useMipMap = false;
 			GraphicsHelper.CreateWriteable3D(ref m_SmoothDensity, desc, "_SmoothDensity");

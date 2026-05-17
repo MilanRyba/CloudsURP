@@ -15,7 +15,7 @@ MonoBehaviour:
   m_Active: 0
   m_VoxelCloudsShader: {fileID: 7200000, guid: 5791b1bdb7a62dd4389dfabe7830416f, type: 3}
   m_SimulationShader: {fileID: 7200000, guid: d22698f12394b7e4eb9424e820834edd, type: 3}
-  m_CloudsVoxelDataFields: {fileID: 11400000, guid: 3900700ad85a0b44ca8f6eb9e687b3d9, type: 2}
+  m_CloudsVoxelDataFields: {fileID: 11400000, guid: c005e300706c4474bbe06ef431bb11d5, type: 2}
   m_VoxelCloudsPassSettings:
     NumSteps: 128
     LargeStepSizeMultiplier: 3
@@ -31,7 +31,7 @@ MonoBehaviour:
     Slice: 0.394
   m_SimulationPassSettings:
     CloudDirection: {x: 0, y: 0}
-    TimeBetweenUpdates: 0.25
+    TimeBetweenUpdates: 0
 --- !u!114 &-7801735191280408724
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44,7 +44,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f5871cdc3552dc2419c2f7332d7314cb, type: 3}
   m_Name: CloudsRendererFeature
   m_EditorClassIdentifier: Assembly-CSharp::CloudsRendererFeature
-  m_Active: 1
+  m_Active: 0
   m_CloudsShader: {fileID: 7200000, guid: adc887142e632524e8357d7b124a873c, type: 3}
   m_CloudResourcesShader: {fileID: 7200000, guid: 3b1578aafded6614ab2e785191559d1b, type: 3}
   m_CloudsPassSettings:
@@ -66,8 +66,8 @@ MonoBehaviour:
       DetailNoiseInfluence: 0.36
       Curliness: 5.9
     PlanetRadius: 600000
-    NumSteps: 128
-    LargeStepSizeMultiplier: 2
+    NumSteps: 256
+    LargeStepSizeMultiplier: 3
     UseJitter: 1
     CurlNoise: {fileID: 2800000, guid: ceb60086f8d63274cb653e0c03977e69, type: 3}
     Eccentricity: 0.33
@@ -76,14 +76,14 @@ MonoBehaviour:
     Brightness: 0.9
     ShowEarlyExit: 0
     ShowTextures: 1
-    Slice: 0.511
+    Slice: 0.578
     ActiveChannel: 0
   m_CloudResourcesSettings:
     CloudTypeBase: 0.82
     CumulusHighlight: 0.47
     CoverageOffset: {x: 3.96, y: -0.09, z: -0.78}
     CoverageStrength: 5.7
-    RefreshResources: 0
+    RefreshResources: 1
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
