@@ -362,20 +362,24 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     
     if (ShowTextures)
     {
-        float2 startUV = float2(10.0, 10.0);
-        float2 debugUV = InverseLerp((float2) id.xy, startUV, float2(256.0, 256.0) + startUV);
+        float2 startUV = float2(1526.0, 10.0);
+        float width = 384.0;
+        float2 widthHeight = float2(width, width);
+        float padding = 20.0;
+        
+        float2 debugUV = InverseLerp((float2) id.xy, startUV, startUV + widthHeight);
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
             Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), ChannelMask);
             return;
         }
         
-        debugUV = InverseLerp((float2) id.xy, startUV + float2(276.0, 0.0), float2(256.0, 256.0) + startUV + float2(276.0, 0.0));
-        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
-        {
-            Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), float4(0, 1, 0, 0));
-            return;
-        }
+        // debugUV = InverseLerp((float2) id.xy, startUV + float2(width + padding, 0.0), startUV + float2(width + padding, 0.0) + widthHeight);
+        // if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        // {
+        //     Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), float4(0, 1, 0, 0));
+        //     return;
+        // }
     }
         
     float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);

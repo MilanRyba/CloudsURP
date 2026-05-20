@@ -90,10 +90,21 @@ float CloudCoverageCumulus(float3 inUVW)
     return all2 * all * all2;
 }
 
+float CloudCoverageCumulus2(float3 inUVW)
+{
+    float lowFreqBase2 = PerlinFBM(inUVW + CoverageOffset + float3(0.4, 0.5, 0.1), 5, 4, false);
+    lowFreqBase2 = Remap(lowFreqBase2, -0.2, 1.0, 0.0, CoverageStrength);
+    
+    float highFreqBase = WorleyDecima(inUVW).g;
+    highFreqBase = Remap(highFreqBase, -0.2, 1.0, 0.0, 0.6);
+    
+    return lowFreqBase2;
+}
+
 float CloudTypeAlligator(float3 inUVW, float inCloudTypeBase, float inCumulusHighlight)
 {
     float cloudType = AlligatorFBM(inUVW, 8, 6);
-    cloudType = AlligatorDecima(inUVW, 6);
+    cloudType = AlligatorDecima(inUVW, 8);
     
     // Raises the lower values
     cloudType = pow(cloudType, inCloudTypeBase);
@@ -122,8 +133,7 @@ void CloudMapCS(uint3 id : SV_DispatchThreadID)
 {
     float3 uvw = TexelToUV(id, ResolutionInv);
     
-    float coverage1 = CloudCoverageStratus(uvw);
-    coverage1 = CloudCoverageStratocumulus(uvw);
+    float coverage1 = CloudCoverageCumulus2(uvw);
     float3 w = WorleyNoise2D(uvw.xy, 6, 0);
     
     // For cloud type we use the billows of alligator noise.
@@ -134,7 +144,6 @@ void CloudMapCS(uint3 id : SV_DispatchThreadID)
     // Found out that using higher frequencies looks better. Six octaves for a full FBM.
     float cloudType1 = CloudTypeAlligator(uvw, CloudTypeBase, CumulusHighlight);
     // cloudType1 = CloudTypePerlin(uvw, CloudTypeBase, CumulusHighlight);
-    
     
     float w1 = WorleyFBM(uvw + float3(0, 0, CloudTypeBase), 10, 1, 3);
     float w2 = 1.0 - WorleyFBM(uvw + float3(0, 0, CloudTypeBase), 10, 1, 0);

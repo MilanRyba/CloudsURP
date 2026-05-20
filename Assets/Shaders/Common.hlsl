@@ -45,9 +45,9 @@ InverseLerpFuncionDef(float3)
 InverseLerpFuncionDef(float4)
 
 // Maps a value from one range to another
-float Remap(float originalValue, float originalMin, float originalMax, float newMin, float newMax)
+float Remap(float inValue, float inOldMin, float inOldMax, float inMin, float inMax)
 {
-    return newMin + (((originalValue - originalMin) / (originalMax - originalMin)) * (newMax - newMin));
+    return inMin + (((inValue - inOldMin) / (inOldMax - inOldMin)) * (inMax - inMin));
 }
 
 //

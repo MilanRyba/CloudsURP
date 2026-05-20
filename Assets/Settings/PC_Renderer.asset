@@ -44,7 +44,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f5871cdc3552dc2419c2f7332d7314cb, type: 3}
   m_Name: CloudsRendererFeature
   m_EditorClassIdentifier: Assembly-CSharp::CloudsRendererFeature
-  m_Active: 0
+  m_Active: 1
   m_CloudsShader: {fileID: 7200000, guid: adc887142e632524e8357d7b124a873c, type: 3}
   m_CloudResourcesShader: {fileID: 7200000, guid: 3b1578aafded6614ab2e785191559d1b, type: 3}
   m_CloudsPassSettings:
@@ -64,26 +64,26 @@ MonoBehaviour:
       ShapeNoiseScale: 1.8
       DetailNoiseScale: 2.69
       DetailNoiseInfluence: 0.36
-      Curliness: 5.9
+      Curliness: 2.1
     PlanetRadius: 600000
     NumSteps: 256
     LargeStepSizeMultiplier: 3
     UseJitter: 1
     CurlNoise: {fileID: 2800000, guid: ceb60086f8d63274cb653e0c03977e69, type: 3}
     Eccentricity: 0.33
-    SilverIntensity: 1.45
+    SilverIntensity: 1.23
     SilverSpread: 0.3
     Brightness: 0.9
     ShowEarlyExit: 0
     ShowTextures: 1
-    Slice: 0.578
-    ActiveChannel: 0
+    Slice: 0.735
+    ActiveChannel: 1
   m_CloudResourcesSettings:
-    CloudTypeBase: 0.82
-    CumulusHighlight: 0.47
-    CoverageOffset: {x: 3.96, y: -0.09, z: -0.78}
-    CoverageStrength: 5.7
-    RefreshResources: 1
+    CloudTypeBase: 1.11
+    CumulusHighlight: 0.52
+    CoverageOffset: {x: 1.6, y: -1.02, z: -0.43}
+    CoverageStrength: 13
+    RefreshResources: 0
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
