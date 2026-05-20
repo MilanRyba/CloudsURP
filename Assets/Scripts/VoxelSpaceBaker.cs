@@ -9,7 +9,7 @@ public class VoxelSpaceBaker : MonoBehaviour
 	const int m_NumEllipsoids = 100;
     List<Transform> m_Ellipsoids = new List<Transform>();
 
-	[Header("KEEP THE POSITION OF THIS GAME OBJECT THE SAME AS Space.WorldOffset")]
+	[Header("KEEP THE POSITION OF THIS GAME OBJECT THE SAME AS Space.Center")]
 
 	public VoxelSpace Space;
 
@@ -24,7 +24,7 @@ public class VoxelSpaceBaker : MonoBehaviour
 
 	private void OnDrawGizmos()
 	{
-		Vector3 origin = Space.WorldOffset;
+		Vector3 origin = Space.Center;
 		
 		Gizmos.color = Color.yellow;
 		Gizmos.DrawWireCube(origin, Space.WorldExtents);
@@ -64,6 +64,6 @@ public class VoxelSpaceBaker : MonoBehaviour
 			CVDF.Ellipsoids[i] = new CloudsVoxelDataFields.Ellipsoid(ellipsoid.position, ellipsoid.localScale);
 		}
 
-		AssetDatabase.CreateAsset(CVDF, "Assets/CVDF/CVDF_FromCode.asset");
+		AssetDatabase.CreateAsset(CVDF, "Assets/CVDF/CVDF_Saved.asset");
 	}
 }

@@ -10,21 +10,21 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 470f0029e4623014f9a239a19a03f797, type: 3}
-  m_Name: CDF_FromCode1
+  m_Name: CDF_FromCode
   m_EditorClassIdentifier: Assembly-CSharp::CloudsDataFields
-  CloudMap: {fileID: 2800000, guid: f0d0efd61df3c914189c8af0bd53436f, type: 3}
+  CloudMap: {fileID: 2800000, guid: 4bd5c83f5859a4144b752558948e27f6, type: 3}
   General:
     CoverageRepeat: 4
-    AnimateCoverage: 0
-    CloudMinHeight: 0.3
-    CloudMaxHeight: 0.75
-    GlobalDensity: 0.026
+    AnimateCoverage: 1
+    CloudMinHeight: 0.362
+    CloudMaxHeight: 0.735
+    GlobalDensity: 0.028
   Wind:
     WindAngle: 0
-    CloudSpeed: 100
-    CloudTopOffset: 100
+    CloudSpeed: 0
+    CloudTopOffset: 250
   Noise:
     ShapeNoiseScale: 1.8
     DetailNoiseScale: 2.69
-    DetailNoiseInfluence: 0.4
-    Curliness: 2.8
+    DetailNoiseInfluence: 0.36
+    Curliness: 2.1

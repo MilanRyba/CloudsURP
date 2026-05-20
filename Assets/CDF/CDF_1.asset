@@ -10,21 +10,21 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 470f0029e4623014f9a239a19a03f797, type: 3}
-  m_Name: CDF_Stratocumulus
+  m_Name: CDF_1
   m_EditorClassIdentifier: Assembly-CSharp::CloudsDataFields
-  CloudMap: {fileID: 2800000, guid: 948d23128bc5f4040ba27e3ebda99344, type: 3}
+  CloudMap: {fileID: 2800000, guid: ef478b1c1d4407f4a915d6718048d999, type: 3}
   General:
-    CoverageRepeat: 4
-    AnimateCoverage: 1
-    CloudMinHeight: 0.362
-    CloudMaxHeight: 0.735
-    GlobalDensity: 0.028
+    CoverageRepeat: 6
+    AnimateCoverage: 0
+    CloudMinHeight: 0.3
+    CloudMaxHeight: 0.606
+    GlobalDensity: 0.024
   Wind:
     WindAngle: 0
-    CloudSpeed: 100
-    CloudTopOffset: 250
+    CloudSpeed: 0
+    CloudTopOffset: 100
   Noise:
-    ShapeNoiseScale: 1.8
+    ShapeNoiseScale: 2.84
     DetailNoiseScale: 2.69
-    DetailNoiseInfluence: 0.36
+    DetailNoiseInfluence: 0.317
     Curliness: 5.9

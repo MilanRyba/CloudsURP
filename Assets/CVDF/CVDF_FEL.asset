@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CloudsVoxelDataFields
   Space:
     WorldExtents: {x: 512, y: 128, z: 512}
-    WorldOffset: {x: 0, y: 128, z: 0}
+    Center: {x: 0, y: 128, z: 0}
     VoxelSize: 1
   Ellipsoids:
   - Position: {x: 0, y: 95.2, z: -102.3, w: 0}

@@ -66,6 +66,8 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 	[Serializable]
 	public class VoxelCloudsPassSettings
 	{
+		[Header("Ray Marching")]
+
 		[Range(8, 256), Tooltip("The maximum number of steps the raymarcher will take")]
 		public int NumSteps = 128;
 
@@ -104,11 +106,6 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 
 		[Tooltip("Enabling this setting will show pixels that stopped the ray march early due to low transmittance")]
 		public bool ShowEarlyExit = false;
-
-		public bool ShowTextures = false;
-
-		[Range(0.0f, 1.0f)]
-		public float Slice = 0.0f;
 	}
 
 	[Serializable]
@@ -244,8 +241,6 @@ public class VoxelCloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "Output", inD.Output);
 
 					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowEarlyExit", m_Settings.ShowEarlyExit ? 1 : 0);
-					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowTextures", m_Settings.ShowTextures ? 1 : 0);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "Slice", m_Settings.Slice);
 
 					inCtx.cmd.SetComputeFloatParam(m_Shader, "_MetaballRadius", m_Settings.MetaballRadius * m_CVDFs.Space.VoxelSize);
 

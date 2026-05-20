@@ -69,7 +69,6 @@ SamplerState sPointClamp;
 
 uint ShowEarlyExit;
 uint ShowTextures;
-float Slice;
 float4 ChannelMask;
 
 static bool EarlyExit = false;
@@ -349,17 +348,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     if (any((float2) id.xy >= ViewportDimensions))
         return;
     
-    // Uncomment for texture previews
-    // float2 debugUV = InverseLerp((float2) id.xy, float2(0.0, 0.0), float2(512.0, 512.0));
-    // if (all(debugUV >= 0.0) && all(debugUV <= 1.0))
-    // {
-    //     float3 pos = float3(debugUV.x, Slice, debugUV.y);
-    //     Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), ChannelMask);
-    //     return;
-    // }
-    // Output[id.xy] = float4(1, 0, 1, 1);
-    // return;
-    
     if (ShowTextures)
     {
         float2 startUV = float2(1526.0, 10.0);
@@ -373,13 +361,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), ChannelMask);
             return;
         }
-        
-        // debugUV = InverseLerp((float2) id.xy, startUV + float2(width + padding, 0.0), startUV + float2(width + padding, 0.0) + widthHeight);
-        // if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
-        // {
-        //     Output[id.xy] = MaskChannels(CloudMap.SampleLevel(sLinearRepeat, debugUV, 0), float4(0, 1, 0, 0));
-        //     return;
-        // }
     }
         
     float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);

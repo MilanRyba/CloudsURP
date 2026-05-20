@@ -10,21 +10,21 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 470f0029e4623014f9a239a19a03f797, type: 3}
-  m_Name: CDF_Basic
+  m_Name: CDF_CoverageTest
   m_EditorClassIdentifier: Assembly-CSharp::CloudsDataFields
-  CloudMap: {fileID: 2800000, guid: ef478b1c1d4407f4a915d6718048d999, type: 3}
+  CloudMap: {fileID: 2800000, guid: ef727d124eabe1540a775105dfb34011, type: 3}
   General:
-    CoverageRepeat: 6
-    AnimateCoverage: 0
-    CloudMinHeight: 0.3
-    CloudMaxHeight: 0.606
-    GlobalDensity: 0.024
+    CoverageRepeat: 4
+    AnimateCoverage: 1
+    CloudMinHeight: 0.362
+    CloudMaxHeight: 0.735
+    GlobalDensity: 0.028
   Wind:
     WindAngle: 0
     CloudSpeed: 0
-    CloudTopOffset: 100
+    CloudTopOffset: 250
   Noise:
-    ShapeNoiseScale: 2.84
+    ShapeNoiseScale: 1.8
     DetailNoiseScale: 2.69
-    DetailNoiseInfluence: 0.317
-    Curliness: 5.9
+    DetailNoiseInfluence: 0.36
+    Curliness: 2.1

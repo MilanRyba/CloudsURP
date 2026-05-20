@@ -45,8 +45,6 @@ SamplerState sPointRepeat;
 SamplerState sPointClamp;
 
 uint ShowEarlyExit;
-uint ShowTextures;
-float Slice;
 
 static bool EarlyExit = false;
 
@@ -311,17 +309,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 {
     if (any((float2) id.xy >= ViewportDimensions))
         return;
-    
-    if (ShowTextures)
-    {
-        float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(276.0f, 276.0f));
-        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
-        {
-            float3 pos = float3(debugUV.x, Slice, debugUV.y);
-            Output[id.xy] = SmoothDensity.SampleLevel(sLinearRepeat, pos, 0);
-            return;
-        }
-    }
         
     float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
     float4 sceneColor = SceneTexture.SampleLevel(sPointClamp, uv, 0);

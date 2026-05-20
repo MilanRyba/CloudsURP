@@ -90,7 +90,7 @@ float CloudCoverageCumulus(float3 inUVW)
     return all2 * all * all2;
 }
 
-float CloudCoverageCumulus2(float3 inUVW)
+float CloudCoverageTest(float3 inUVW)
 {
     float lowFreqBase2 = PerlinFBM(inUVW + CoverageOffset + float3(0.4, 0.5, 0.1), 5, 4, false);
     lowFreqBase2 = Remap(lowFreqBase2, -0.2, 1.0, 0.0, CoverageStrength);
@@ -98,13 +98,12 @@ float CloudCoverageCumulus2(float3 inUVW)
     float highFreqBase = WorleyDecima(inUVW).g;
     highFreqBase = Remap(highFreqBase, -0.2, 1.0, 0.0, 0.6);
     
-    return lowFreqBase2;
+    return lowFreqBase2 * highFreqBase;
 }
 
 float CloudTypeAlligator(float3 inUVW, float inCloudTypeBase, float inCumulusHighlight)
 {
-    float cloudType = AlligatorFBM(inUVW, 8, 6);
-    cloudType = AlligatorDecima(inUVW, 8);
+    float cloudType = AlligatorDecima(inUVW, 8);
     
     // Raises the lower values
     cloudType = pow(cloudType, inCloudTypeBase);
@@ -133,22 +132,20 @@ void CloudMapCS(uint3 id : SV_DispatchThreadID)
 {
     float3 uvw = TexelToUV(id, ResolutionInv);
     
-    float coverage1 = CloudCoverageCumulus2(uvw);
-    float3 w = WorleyNoise2D(uvw.xy, 6, 0);
+    // Set these two values to store coverage and cloud type
+    float coverage;
+    float cloudType;
     
-    // For cloud type we use the billows of alligator noise.
-    // Similarly as worley noise, it contains spots with high values that are gradually toned down.
-    // These bubbles/billows allow the clouds to have a heap-like appearance.
-    // Using a more uniform noise would result in clouds having the same height.
+    // Use one of the several functions contained in this file 
+    // to generate coverage noise or create your own
+    coverage = CloudCoverageTest(uvw);
     
-    // Found out that using higher frequencies looks better. Six octaves for a full FBM.
-    float cloudType1 = CloudTypeAlligator(uvw, CloudTypeBase, CumulusHighlight);
-    // cloudType1 = CloudTypePerlin(uvw, CloudTypeBase, CumulusHighlight);
+    // We used CloudTypeAlligator and CloudTypePerlin for generating noise for cloud type.
+    // They both use CloudTypeBase, CumulusHighlight in the same way to control the final result.
+    cloudType = CloudTypeAlligator(uvw, CloudTypeBase, CumulusHighlight);
     
-    float w1 = WorleyFBM(uvw + float3(0, 0, CloudTypeBase), 10, 1, 3);
-    float w2 = 1.0 - WorleyFBM(uvw + float3(0, 0, CloudTypeBase), 10, 1, 0);
-    float w3 = 1.0 - WorleyFBM(uvw + float3(0, 0, CloudTypeBase), 10, 2, 0);
+    // IF YOU MAKE CHANGES TO THIS CODE, SAVE IT AND CHANGE SOME VALUE IN THE RENDERER FEATURE INSPECTOR.
+    // THIS WAY YOU FORCE THE RENDERER FEATURE TO EXECUTE THIS CODE AND CREATE YOUR NEW CLOUD MAP.
         
-    OutputMap[id.xy] = saturate(float2(coverage1, cloudType1));
-    // OutputMap[id.xy] = saturate(float4(w, 0));
+    OutputMap[id.xy] = saturate(float4(coverage, cloudType, 0.0, 0.0));
 }

@@ -7,7 +7,6 @@ public class GeneralCDFs
 	[Range(2, 8)]
 	public int CoverageRepeat = 4;
 
-	// USE THIS IN SHADER
 	public bool AnimateCoverage = false;
 
 	[Range(0.01f, 1.0f)]

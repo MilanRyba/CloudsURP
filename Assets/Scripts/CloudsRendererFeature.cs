@@ -96,15 +96,15 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		public WindCDFs Wind = new WindCDFs();
 		public NoiseCDFs Noise = new NoiseCDFs();
 
-		[Header("General")]
+		[Header("Ray Marching")]
 
 		[Range(1000.0f, 1000000.0f), Tooltip("Planet's radius in meters")]
 		public float PlanetRadius = 60000.0f;
 
-		[Range(8, 256), Tooltip("The maximum number of steps the raymarcher will take")]
+		[Range(8, 256), Tooltip("The maximum number of steps the ray marcher will take")]
 		public int NumSteps = 128;
 
-		[Range(2.0f, 4.0f)]
+		[Range(2.0f, 4.0f), Tooltip("Controls the step size when ray marching outside of clouds")]
 		public float LargeStepSizeMultiplier = 3.0f;
 
 		[Tooltip("Offsets the starting sample position during the ray march")]
@@ -113,21 +113,18 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		public Texture2D CurlNoise;
 
 
-		[Header("Phase")]
+		[Header("Lighting")]
 
-		// TODO: What is this tooltip??
-		[Range(-0.99f, 0.99f), Tooltip("Directional scattering bias. Values >1 make the light scatter forward and values <1 backward")]
+		[Range(-0.99f, 0.99f), Tooltip("Directional scattering bias. Values >1 make light scatter forward and values <1 backward")]
 		public float Eccentricity = 0.65f;
 
-		[Range(0.0f, 4.0f)]
+		[Range(0.0f, 4.0f), Tooltip("Controls the intensity of the phase function")]
 		public float SilverIntensity = 0.95f;
 
-		[Range(0.0f, 2.0f)]
+		[Range(0.0f, 2.0f), Tooltip("Controls the spread away from sun")]
 		public float SilverSpread = 1.0f;
 
-		[Space(2.0f)]
-
-		[Range(0.0f, 2.0f)]
+		[Range(0.0f, 2.0f), Tooltip("Allows for increase or decrease of light energy")]
 		public float Brightness = 1.0f;
 
 
@@ -136,10 +133,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 		[Tooltip("Enabling this setting will show pixels that stopped the ray march early due to low transmittance")]
 		public bool ShowEarlyExit = false;
 
-		public bool ShowTextures = false;
-
-		[Range(0.0f, 1.0f)]
-		public float Slice = 0.0f;
+		public bool InspectCloudMap = false;
 
 		public TextureChannel ActiveChannel = TextureChannel.R;
 
@@ -232,33 +226,17 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			byte[] bytes;
 			bytes = tex.EncodeToPNG();
 
-			string path = "Assets/CloudMaps/CloudMap.png";
+			string path = "Assets/CloudMaps/CloudMapNew.png";
 			System.IO.File.WriteAllBytes(path, bytes);
 			AssetDatabase.ImportAsset(path);
-
-			// RenderTexture rt = m_CloudMap.rt;
-			// RenderTexture rtNew = new RenderTexture(rt.width, rt.height, 8, RenderTextureFormat.ARGB32);
-			// Graphics.Blit(rt, rtNew);
-			// 
-			// RenderTexture.active = rtNew;
-			// Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false, true);
-			// tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-			// RenderTexture.active = null;
-			// 
-			// byte[] bytes;
-			// bytes = tex.EncodeToPNG();
-			// 
-			// string path = "Assets/CloudMaps/CloudMap.png";
-			// System.IO.File.WriteAllBytes(path, bytes);
-			// AssetDatabase.ImportAsset(path);
 		}
 
 		public void SaveCDF()
 		{
 			SaveCloudMapAsAsset();
 
-			m_InternalCDFs.CloudMap = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/CloudMaps/CloudMap.png");
-			AssetDatabase.CreateAsset(m_InternalCDFs, "Assets/CDFs/CDF_FromCode.asset");
+			m_InternalCDFs.CloudMap = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/CloudMaps/CloudMapSaved.png");
+			AssetDatabase.CreateAsset(m_InternalCDFs, "Assets/CDF/CDF_Saved.asset");
 		}
 
 		private class PassData
@@ -382,8 +360,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 					inCtx.cmd.SetComputeTextureParam(m_Shader, m_Kernel, "Output", inD.Output);
 
 					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowEarlyExit", m_Settings.ShowEarlyExit ? 1 : 0);
-					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowTextures", m_Settings.ShowTextures ? 1 : 0);
-					inCtx.cmd.SetComputeFloatParam(m_Shader, "Slice", m_Settings.Slice);
+					inCtx.cmd.SetComputeIntParam(m_Shader, "ShowTextures", m_Settings.InspectCloudMap ? 1 : 0);
 					inCtx.cmd.SetComputeVectorParam(m_Shader, "ChannelMask", m_Settings.ChannelMask);
 
 					GraphicsHelper.Dispatch(inCtx, m_Shader, m_Kernel, (int)inD.ViewportDimensions.x, (int)inD.ViewportDimensions.y);

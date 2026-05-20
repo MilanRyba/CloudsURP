@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 470f0029e4623014f9a239a19a03f797, type: 3}
   m_Name: CDF_Cumulus
   m_EditorClassIdentifier: Assembly-CSharp::CloudsDataFields
-  CloudMap: {fileID: 2800000, guid: 84eae8bdd90dcc7449f9bfa5e60bf2a4, type: 3}
+  CloudMap: {fileID: 2800000, guid: 252c80cf1ff6888429275d4420525736, type: 3}
   General:
     CoverageRepeat: 4
     AnimateCoverage: 1
