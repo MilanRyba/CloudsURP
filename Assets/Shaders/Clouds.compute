@@ -200,14 +200,14 @@ float SampleCloudDensity(float3 inSamplePosition, bool inCheapSample)
     return saturate(baseCloud * GlobalDensity);
 }
 
-static const float3 NOISE_KERNEL[6] = 
+static const float3 NOISE_KERNEL[6] =
 {
-	float3( 0.38051305,  0.92453449, -0.02111345),
+    float3(0.38051305, 0.92453449, -0.02111345),
 	float3(-0.50625799, -0.03590792, -0.86163418),
-	float3(-0.32509218, -0.94557439,  0.01428793),
-	float3( 0.09026238, -0.27376545,  0.95755165),
-	float3( 0.28128598,  0.42443639, -0.86065785),
-	float3(-0.16852403,  0.14748697,  0.97460106)
+	float3(-0.32509218, -0.94557439, 0.01428793),
+	float3(0.09026238, -0.27376545, 0.95755165),
+	float3(0.28128598, 0.42443639, -0.86065785),
+	float3(-0.16852403, 0.14748697, 0.97460106)
 };
 
 // A function to gather density in a cone for use with lighting clouds
@@ -232,7 +232,7 @@ float SampleDensityToSun(float3 inSamplePosition, float3 inDirection, CloudRende
 }
 
 // Calculate the light energy as a combination of three probabilities
-float GetLightEnergy(float inHeightFraction, float inDensityLight, float inDensity, 
+float GetLightEnergy(float inHeightFraction, float inDensityLight, float inDensity,
                      float inPhaseProbability, float inCosAngle, float inStepSize, float inBrightness)
 {
     // Attenuation
@@ -303,7 +303,7 @@ void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, 
                     float densityToSun = SampleDensityToSun(samplePos, inGlobalInfo.mSunDirection, raymarchInfo);
                     
                     float heightFraction = GetHeightFractionForPoint(samplePos);
-                    float lightEnergy = GetLightEnergy(heightFraction, densityToSun, sampledDensity, 
+                    float lightEnergy = GetLightEnergy(heightFraction, densityToSun, sampledDensity,
                                                        phase, cosAngle, raymarchInfo.mStepSize, Brightness);
                     
                     ioPixelData.mScattering += sampledDensity * ioPixelData.mTransmittance * raymarchInfo.mStepSize *
