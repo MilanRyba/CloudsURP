@@ -226,7 +226,7 @@ public class CloudsRendererFeature : ScriptableRendererFeature
 			byte[] bytes;
 			bytes = tex.EncodeToPNG();
 
-			string path = "Assets/CloudMaps/CloudMapNew.png";
+			string path = "Assets/CloudMaps/CloudMapSaved.png";
 			System.IO.File.WriteAllBytes(path, bytes);
 			AssetDatabase.ImportAsset(path);
 		}
