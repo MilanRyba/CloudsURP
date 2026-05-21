@@ -1906,13 +1906,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.23620522, y: -0.3529402, z: -0.092568904, w: 0.90059495}
-  m_LocalPosition: {x: 313.85617, y: -99.42341, z: -326.30487}
+  m_LocalRotation: {x: -0.14433143, y: -0.61380285, z: -0.115424596, w: 0.7675231}
+  m_LocalPosition: {x: 183.34471, y: 53.53971, z: -60.790237}
   m_LocalScale: {x: 0.99116, y: 0.99116, z: 0.99116}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: -26, y: -213.002, z: -0.002}
+  m_LocalEulerAnglesHint: {x: -21.3, y: -77.3, z: 0}
 --- !u!114 &330585547
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2868,13 +2868,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.72067827, y: -0, z: -0, w: 0.6932697}
+  m_LocalRotation: {x: -0.5537196, y: -0.03127435, z: -0.46085292, w: -0.69284284}
   m_LocalPosition: {x: -623, y: 43, z: -1020}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 92.22101, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 132.4, y: -1204.8, z: -86.770996}
 --- !u!114 &410087042
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9935,6 +9935,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 275033621528424206, guid: 2dfb18e288d18484ea4ee8d5a303ac60, type: 3}
+      propertyPath: Space.Center.y
+      value: 128
+      objectReference: {fileID: 0}
     - target: {fileID: 7551668911601344233, guid: 2dfb18e288d18484ea4ee8d5a303ac60, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -10035,6 +10039,10 @@ PrefabInstance:
     - target: {fileID: 2790810662721516907, guid: b1d95dcb2d743a84381f80045c2dc404, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3022018622276951504, guid: b1d95dcb2d743a84381f80045c2dc404, type: 3}
+      propertyPath: Space.Center.y
+      value: 128
       objectReference: {fileID: 0}
     - target: {fileID: 3458084734770937685, guid: b1d95dcb2d743a84381f80045c2dc404, type: 3}
       propertyPath: m_Name

@@ -15,7 +15,7 @@ MonoBehaviour:
   m_Active: 0
   m_VoxelCloudsShader: {fileID: 7200000, guid: 5791b1bdb7a62dd4389dfabe7830416f, type: 3}
   m_SimulationShader: {fileID: 7200000, guid: d22698f12394b7e4eb9424e820834edd, type: 3}
-  m_CloudsVoxelDataFields: {fileID: 11400000, guid: 1559db5f76cf97b4abff073e20c18d91, type: 2}
+  m_CloudsVoxelDataFields: {fileID: 11400000, guid: 7c03ac27026d9f34fbda42d64807e879, type: 2}
   m_VoxelCloudsPassSettings:
     NumSteps: 128
     LargeStepSizeMultiplier: 3
@@ -42,12 +42,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f5871cdc3552dc2419c2f7332d7314cb, type: 3}
   m_Name: CloudsRendererFeature
   m_EditorClassIdentifier: Assembly-CSharp::CloudsRendererFeature
-  m_Active: 0
+  m_Active: 1
   m_CloudsShader: {fileID: 7200000, guid: adc887142e632524e8357d7b124a873c, type: 3}
   m_CloudResourcesShader: {fileID: 7200000, guid: 3b1578aafded6614ab2e785191559d1b, type: 3}
   m_CloudsPassSettings:
     OverrideCDF: 0
-    CloudsDataFields: {fileID: 11400000, guid: 5b2aea44221e2904db2c7bfbce113323, type: 2}
+    CloudsDataFields: {fileID: 11400000, guid: 8f871f114712f9e4391360229f7bdbd8, type: 2}
     General:
       CoverageRepeat: 4
       AnimateCoverage: 1
@@ -80,7 +80,7 @@ MonoBehaviour:
     CumulusHighlight: 0.52
     CoverageOffset: {x: 1.6, y: -1.02, z: -0.43}
     CoverageStrength: 13
-    RefreshResources: 1
+    RefreshResources: 0
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -1413,7 +1413,7 @@ MonoBehaviour:
   CloudEllipsoid: {fileID: 7868483984351279839, guid: 9216079cf370d7a4ea14da6036a3542a, type: 3}
   Space:
     WorldExtents: {x: 512, y: 128, z: 512}
-    WorldOffset: {x: 0, y: 128, z: 0}
+    Center: {x: 0, y: 128, z: 0}
     VoxelSize: 1
 --- !u!1 &8736674426754671081
 GameObject:
